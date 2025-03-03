@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 import json
 from scipy.ndimage import median_filter, rotate
 from matplotlib.widgets import RectangleSelector
-
+import cv2
 # Function to open H5 file and read images
 def get_images(file_path):
     with h5py.File(file_path, 'r') as f:
         images = f['images'][:]
         res = f['images'].attrs['resolution']
+        print(res)
     return images,res
 
 def create_circular_mask(image,center=None, radius=None):
@@ -24,10 +25,103 @@ def create_circular_mask(image,center=None, radius=None):
     mask = dist_from_center <= radius
     return mask, center, radius
 
+
+
+def ransac_circle_fit(points):
+    """
+    Fits a circle to the given points using RANSAC.
+
+    Parameters:
+        points (np.ndarray): Array of points (x, y) to fit the circle.
+
+    Returns:
+        tuple: (x_center, y_center, radius) of the fitted circle.
+    """
+    # RANSAC parameters
+    n_samples = 100  # Number of samples for RANSAC
+    max_trials = 100  # Number of trials for RANSAC
+
+    best_inliers = []
+    best_circle = None
+
+    for _ in range(max_trials):
+        # Randomly sample points
+        indices = np.random.choice(len(points), size=n_samples, replace=False)
+        sample_points = points[indices]
+
+        # Fit the circle using least squares method
+        A = np.c_[sample_points[:, 0], sample_points[:, 1], np.ones(sample_points.shape[0])]
+        b = sample_points[:, 0]**2 + sample_points[:, 1]**2
+        params = np.linalg.lstsq(A, b, rcond=None)[0]
+
+        # Circle center and radius
+        x_center = params[0] / 2
+        y_center = params[1] / 2
+        radius = np.sqrt(params[2] + (x_center**2 + y_center**2))
+
+        # Calculate distances from the fitted circle
+        distances = np.sqrt((points[:, 0] - x_center)**2 + (points[:, 1] - y_center)**2)
+        inliers = distances < (radius + 1)  # Tolerance for inliers
+
+        # Update best circle if more inliers found
+        if np.sum(inliers) > len(best_inliers):
+            best_inliers = points[inliers]
+            best_circle = (x_center, y_center, radius)
+    # Return None if no valid circle was found
+    if best_circle is None:
+        return None
+
+    return best_circle
+
+def filter_bright_circle_and_fit(image):
+    """
+    Filters the image to retain only the bright pixels within a circular region
+    centered in the image with a radius greater than h/4 and fits a circle using RANSAC.
+
+    Parameters:
+        image (np.ndarray): Input image array.
+
+    Returns:
+        tuple: (mask, (x_center, y_center, radius))
+    """
+    # Load image dimensions
+    h_full, w_full = image.shape
+    print("Original shape:", image.shape)
+
+    # Calculate the center and radius
+    center_x, center_y = w_full // 2, h_full // 2
+    radius_big = h_full // 2  # Assuming radius is greater than h/4
+    radius_small = h_full // 4
+
+    # Create a grid of coordinates
+    y, x = np.ogrid[:h_full, :w_full]
+    circle_mask = (x - center_x)**2 + (y - center_y)**2 >= radius_small**2
+    circle_big_mask = (x - center_x)**2 + (y - center_y)**2 <= radius_big**2
+
+    # Calculate the mean pixel value to identify bright pixels
+    mean_value = np.mean(image)
+    bright_mask = image > mean_value
+
+    # Combine masks: retain only bright pixels within the circle
+    final_mask = circle_mask & circle_big_mask & bright_mask
+
+    # Extract the coordinates of bright pixels
+    y_coords, x_coords = np.where(final_mask)
+    points = np.column_stack((x_coords, y_coords))
+
+    # Fit a circle to the bright points using RANSAC
+    circle_params = ransac_circle_fit(points)
+    if circle_params is None:
+        return None, None, None
+    xc, yc = circle_params[0],circle_params[1]
+    radius = circle_params[2]*0.96
+    circle_mask = (x - xc) ** 2 + (y - yc) ** 2 <= radius ** 2
+    return circle_mask, (xc,yc), radius
+
 # Function to let user select a draggable ROI
 def select_roi(image):
     fig, ax = plt.subplots()
-    ax.imshow(image, cmap='gray')
+    ax.imshow(image, cmap='viridis')
     ax.set_title("Select ROI: Drag the box to select the region")
 
     # Store the selected ROI coordinates
@@ -52,7 +146,9 @@ def select_roi(image):
     # After selection, return the cropped region
     if len(roi_coords) == 4:
         x1, y1, x2, y2 = map(int, roi_coords)
-        return image[y1:y2, x1:x2]
+        mask = np.zeros(image.shape, dtype=bool)
+        mask[y1:y2, x1:x2] = True
+        return mask
     else:
         return None  # In case selection wasn't made
 
@@ -81,6 +177,30 @@ def smooth_saturated_values(image, threshold=None, filter_size=3):
     image[mask] = smoothed_image[mask]
 
     return image
+
+def calculate_rms_vectorized(image, Cx, Cy,compute_covariance=True):
+    """
+    Calculate the RMS size using a vectorized approach.
+
+    Args:
+        image (ndarray): The input 2D image.
+        Cx (ndarray): The x-coordinate centers for each image.
+        Cy (ndarray): The y-coordinate centers for each image.
+
+    Returns:
+        Rx (ndarray): The RMS size in the x-direction for each image.
+        Ry (ndarray): The RMS size in the y-direction for each image.
+    """
+    # Calculate distances from the center
+    rows, cols = np.indices(image.shape)
+    R_x = np.sqrt(np.sum((cols - Cx) ** 2 * image) / np.sum(image))
+    R_y = np.sqrt(np.sum((rows - Cy) ** 2 * image) / np.sum(image))
+    R_xy = None
+    if compute_covariance:
+        # Calculate Rxy based on covariance
+        R_xy = (np.sum((cols - Cx) * (rows - Cy) * image) / np.sum(image))
+
+    return R_x, R_y, R_xy
 
 def calculate_rms_corrected(image):
     """
@@ -111,178 +231,15 @@ def calculate_rms_corrected(image):
 
     # Create 2D grids of differences
     dx_grid, dy_grid = np.meshgrid(dx, dy)
-
     # Compute variance (weighted by intensity)
-    Xnom = np.sum(image * dx_grid**2)
-    Ynom = np.sum(image * dy_grid**2)
+    Xnom = np.sum(image * dx_grid ** 2)
+    Ynom = np.sum(image * dy_grid ** 2)
 
     # RMS size is the square root of variance
     Rx = np.sqrt(Xnom / total_intensity)
     Ry = np.sqrt(Ynom / total_intensity)
-
     return Cx,Cy,Rx,Ry
 
-#
-def gaussian_linear_background(x, amp, mu, sigma, offset=0):
-    """Gaussian plus linear background fn"""
-    return amp * np.exp(-((x - mu) ** 2) / 2 / sigma**2) + offset
-
-
-class GaussianLeastSquares:
-    """
-        Calculate the centroid (Cx, Cy) and sigmas assuming Gaussian (Sx, Sy) of an image.
-
-        Args:
-            image (ndarray): The input 2D image (intensity array).
-
-        Returns:
-            Cx (float): The x-coordinate of the centroid.
-            Cy (float): The y-coordinate of the centroid.
-            Sx (float): The RMS size in the x-direction.
-            Sy (float): The RMS size in the y-direction.
-        """
-    def __init__(self, train_x: Tensor, train_y: Tensor, pk_loc):
-        self.train_x = train_x
-        self.train_y = train_y
-        self.pk_loc = pk_loc
-
-    def forward(self, X):
-        amp = X[..., 0].unsqueeze(-1)
-        mu = X[..., 1].unsqueeze(-1)
-        sigma = X[..., 2].unsqueeze(-1)
-        offset = X[..., 3].unsqueeze(-1)
-        train_x = self.train_x.repeat(*X.shape[:-1], 1)
-        train_y = self.train_y.repeat(*X.shape[:-1], 1)
-        pred = amp * torch.exp(-((train_x - mu) ** 2) / 2 / sigma**2) + offset
-        neg_mse = -torch.sum((pred - train_y) ** 2, dim=-1).sqrt() / len(train_y)
-        neg_log_prior_loss = (
-            -0.01 * (amp.squeeze() - 1.0) ** 2
-            - 0.01**2 * (mu.squeeze() - self.pk_loc) ** 2
-        )
-        # print(
-        #    float(torch.mean(neg_mse)),
-        #    float(torch.mean(neg_log_prior_loss))
-        # )
-        loss = neg_mse + neg_log_prior_loss
-
-        return loss
-
-
-def fit_gaussian_linear_background(y, inital_guess=None, visualize=True, n_restarts=1):
-    """
-    Takes a function y and inputs and fits and Gaussian with
-    linear bg to it. Returns the best fit estimates of the parameters
-    amp, mu, sigma and their associated 1sig error
-    """
-
-    # threshold off mean value on the edge of the domain
-    thresholded_y = y - np.mean(y[-10:])
-    thresholded_y = np.where(thresholded_y > 0, thresholded_y, 0)
-
-    # normalize amplitude
-    normed_y = thresholded_y / max(thresholded_y)
-
-    x = np.arange(normed_y.shape[0])
-    width = normed_y.shape[0]
-    inital_guess = inital_guess or {}
-    sigma_min = 2.0
-
-    # specify initial guesses if not provided in initial_guess
-    smoothed_y = np.clip(gaussian_filter(normed_y, 3), 0, np.inf)
-
-    pk_value = np.max(smoothed_y)
-    pk_loc = np.argmax(smoothed_y)
-
-    offset = inital_guess.pop("offset", np.mean(normed_y[-10:]))
-    amplitude = inital_guess.pop("amplitude", smoothed_y.max() - offset)
-    # slope = inital_guess.pop("slope", 0)
-
-    # use weighted mean and rms to guess
-    center = inital_guess.pop("mu", pk_loc)
-    sigma = inital_guess.pop("sigma", normed_y.shape[0] / 2)
-
-    para0 = torch.tensor([amplitude, center, sigma, offset])
-
-    # generate points +/- 50 percent
-    rand_para0 = torch.rand((n_restarts, 4)) - 0.5
-    rand_para0[..., 0] = (rand_para0[..., 0] + 1.0) * amplitude
-    rand_para0[..., 1] = (rand_para0[..., 1] + 1.0) * center
-    rand_para0[..., 2] = (rand_para0[..., 2] + 1.0) * sigma
-    rand_para0[..., 3] = rand_para0[..., 3] * 200 + offset
-
-    para0 = torch.vstack((para0, rand_para0))
-
-    bounds = torch.tensor(
-        (
-            (pk_value / 2.0, max(center - width / 4, 0), sigma_min, 0.0),
-            (pk_value * 1.5, min(center + width / 4, width), width, 1.2),
-        )
-    )
-
-    # clip on bounds
-    para0 = torch.clip(para0, bounds[0], bounds[1])
-
-    # create LSQ model
-    model = GaussianLeastSquares(
-        torch.tensor(x), torch.tensor(normed_y), torch.tensor(pk_loc)
-    )
-    smoothed_model = GaussianLeastSquares(
-        torch.tensor(x), torch.tensor(smoothed_y), torch.tensor(pk_loc)
-    )
-
-    # fit smoothed model to get better initial points
-    scandidates, svalues = gen_candidates_scipy(
-        para0,
-        smoothed_model.forward,
-        lower_bounds=bounds[0],
-        upper_bounds=bounds[1],
-        options={"maxiter": 50},
-    )
-
-    # fit regular model to refine
-    candidates, values = gen_candidates_scipy(
-        scandidates,
-        smoothed_model.forward,
-        lower_bounds=bounds[0],
-        upper_bounds=bounds[1],
-        options={"maxiter": 50},
-    )
-
-    # in some cases the fit will return a sigma value of 2.0
-    # or an amplitude that is within the noise
-    # drop these from candidates
-    # print(candidates)
-    indiv_condition = torch.stack(
-        (
-            candidates[:, -2] > sigma_min * 1.1,
-            candidates[:, -2] < width / 1.5,
-            candidates[:, 0] > 0.1,
-        )
-    )
-    # print(indiv_condition)
-
-    condition = torch.all(indiv_condition, dim=0)
-    # print(condition)
-    valid_candidates = candidates[condition]
-    valid_values = values[condition]
-
-    if len(valid_candidates) > 0:
-        # get best valid from restarts
-        candidate = valid_candidates[torch.argmax(valid_values)].detach().numpy()
-
-        if visualize:
-            plot_fit(x, normed_y, candidate)
-
-    else:
-        # if no fits were successful return nans
-        bad_candidate = candidates[torch.argmax(values)].detach().numpy()
-        if visualize:
-            fig, ax = plot_fit(x, normed_y, bad_candidate)
-            ax.set_title("bad fit")
-
-        candidate = [np.nan] * 4
-
-    return candidate
 """
 # Function to filter the image 
 def filter_image(image, sigma=2):
