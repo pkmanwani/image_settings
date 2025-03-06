@@ -1,11 +1,11 @@
 import json
 
 # Load parameters.json (dataset)
-with open("parameters.json", "r") as f:
+with open("2025_02_20/DowntheLine/parameters.json", "r") as f:
     dataset = json.load(f)
 
 # Load res.json (resolution values)
-with open("res.json", "r") as f:
+with open("../beamlines/awa/res.json", "r") as f:
     res_data = json.load(f)[0]  # Extract the dictionary inside the list
 
 # Function to extract the correct key from the filename
@@ -15,11 +15,12 @@ def get_res_key(filename):
             return key
     return None
 
-# Update dataset with correct resolution
+# Update dataset with correct resolution only if "res" does not exist
 for entry in dataset:
-    key = get_res_key(entry["filename"])
-    if key and key in res_data:
-        entry["res"] = res_data[key]
+    if "res" not in entry:  # Check if "res" is already present
+        key = get_res_key(entry["filename"])
+        if key and key in res_data:
+            entry["res"] = res_data[key]
 
 # Save updated dataset back to parameters.json
 with open("parameters.json", "w") as f:
@@ -33,11 +34,12 @@ with open("parameters.json", "r") as f:
 
 # Convert to mm using res
 for entry in dataset:
-    res = entry["res"]
-    entry["Rx_mm"] = entry["Rx_final"] * res
-    entry["Ry_mm"] = entry["Ry_final"] * res
-    entry["Sx_mm"] = entry["Sx_final"] * res
-    entry["Sy_mm"] = entry["Sy_final"] * res
+    if "res" in entry:  # Ensure "res" is available
+        res = entry["res"]
+        entry["Rx_mm"] = entry["Rx_final"] * res
+        entry["Ry_mm"] = entry["Ry_final"] * res
+        entry["Sx_mm"] = entry["Sx_final"] * res
+        entry["Sy_mm"] = entry["Sy_final"] * res
 
 # Save updated parameters.json
 with open("parameters.json", "w") as f:

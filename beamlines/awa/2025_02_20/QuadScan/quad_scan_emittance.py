@@ -39,7 +39,7 @@ P01      = gamma1 * beta1 * mc2
 pCentral = P01 / EMASS
 
 # Load data from JSON file
-json_file_path = os.path.join('2024_07_18', 'data_quad_scan', 'all_statistics.json')
+json_file_path = os.path.join('2024_07_18', 'data', 'all_statistics.json')
 with open(json_file_path, 'r') as json_file:
     data = json.load(json_file)
 
