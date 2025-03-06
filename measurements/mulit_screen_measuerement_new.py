@@ -4,7 +4,7 @@ from scipy.optimize import curve_fit
 from scipy.linalg import inv
 from sympy import MatrixSymbol, Matrix
 import matplotlib.pyplot as plt
-
+from scipy import scipy.constants.c as
 def Drift(l):
     return Matrix([[1, l, 0, 0,  0, 0],
                     [0, 1,  0, 0,  0, 0],

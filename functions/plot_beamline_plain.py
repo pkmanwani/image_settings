@@ -20,10 +20,10 @@ def plot_beamline(file_path):
     for quad in quads:
         quad["Elegant_Pos"] = quad["position"] - reference_position
     for yag in yags:
-        if yag["position"] != "":
+        if isinstance(yag["position"], (int, float)):
             yag["Elegant_Pos"] = yag["position"] - reference_position
         else:
-            yag["Elegant_Pos"] = None  # Keep it None if no position is provided
+            yag["Elegant_Pos"] = None
 
     # Plot settings
     fig, ax = plt.subplots(figsize=(12, 3))

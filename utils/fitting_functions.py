@@ -352,6 +352,33 @@ def plot_2d_gaussian_overlay(overlay_images_dir, image, index, *params):
 
     # Set ticks and labels to white for visibility
     ax.tick_params(axis='both', colors='white', labelsize=10)
+    # Define the number of ticks you want
+    num_ticks_x = 6  # Increase for finer x-axis ticks
+    num_ticks_y = 6  # Increase for finer y-axis ticks
+
+    # Generate tick positions
+    x_ticks = np.linspace(-cropped_img_width_mm / 2, cropped_img_width_mm / 2, num_ticks_x)
+    y_ticks = np.linspace(cropped_img_height_mm / 2, -cropped_img_height_mm / 2, num_ticks_y)
+
+    # Round to two decimal places
+    x_ticks = np.round(x_ticks, 1)
+    y_ticks = np.round(y_ticks, 1)
+
+    # Ensure 0 is in the tick list
+    if 0 not in x_ticks:
+        x_ticks = np.sort(np.append(x_ticks, 0.0))
+    if 0 not in y_ticks:
+        y_ticks = np.sort(np.append(y_ticks, 0.0))
+
+    # Apply ticks
+    ax.set_xticks(x_ticks)
+    ax.set_yticks(y_ticks)
+
+    # Set tick parameters
+    ax.tick_params(axis='both', colors='white', labelsize=10)
+    # Apply ticks
+    ax.set_xticks(x_ticks)
+    ax.set_yticks(y_ticks)
 
     ax.set_frame_on(True)
 
@@ -485,6 +512,7 @@ def find_threshold_crossing(masked_image, threshold_images_dir, index, debug):
         if threshold_value is not None:
             plt.axvline(threshold_value, color='green', linestyle='--', label="Threshold Crossing")
         plt.legend()
+        plt.xlabel("Threshold value")
         # Save the figure
         plt.savefig(f"{threshold_images_dir}/threshold_{index}.png")
         plt.close()

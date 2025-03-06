@@ -1,4 +1,17 @@
 {
+  "beam" : [
+    {
+      "pz": 58e6,
+      "sigmaz": 6e-12,
+
+    }
+  ],
+  "linacs": [
+    {
+      "name": "linac1",
+      "position": 1000e-3
+    }
+  ],
   "yags": [
     {
       "name": "yag1",
