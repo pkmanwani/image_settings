@@ -318,14 +318,14 @@ def plot_2d_gaussian_overlay(overlay_images_dir, image, index, *params):
     fig.patch.set_facecolor('black')  # Set the figure background to black
     ax.set_facecolor('black')  # Set the axes background to black
 
-    # Overlay X projection at the top edge of the image
+    # Overlay X projection at the bottom edge of the image
     x_range = np.linspace(0, cropped_img_width_mm, cropped_img_width) - (Cx-x_min*res)
-    ax.plot(x_range, cropped_img_height_mm - x_projection * res, color='white',
+    ax.plot(x_range, cropped_img_height_mm - x_projection * res - (Cy-y_min*res), color='white',
             linewidth=1)  # Flipped to align with image
 
     # Overlay Y projection at the right edge of the image
     y_range = np.linspace(0, cropped_img_height_mm, cropped_img_height) - (Cy-y_min*res)
-    ax.plot(cropped_img_width_mm - y_projection * res, y_range, color='white', linewidth=1)  # Flipped to align
+    ax.plot(0 + y_projection * res - (Cx-x_min*res), y_range, color='white', linewidth=1)  # Flipped to align
 
     # Adjusted ellipses for the cropped region
     ax.add_patch(patches.Ellipse((0, 0), width=major_axis_R, height=minor_axis_R,
