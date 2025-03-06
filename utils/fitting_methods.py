@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from scipy.ndimage import gaussian_filter
 from torch import Tensor
-
 from .batch_minimization import gen_candidates_scipy
 
 logger = logging.getLogger(__name__)

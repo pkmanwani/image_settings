@@ -21,7 +21,7 @@ class ScreenFinder:
             "button_press_event", self.draw_circle
         )
         self.cid2 = self.ax.figure.canvas.mpl_connect("key_press_event", self.key_press)
-
+        plt.title("Select three points to get YAG circle")
         plt.show()
 
     def draw_circle(self, event):

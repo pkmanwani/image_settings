@@ -1,0 +1,206 @@
+{
+  "yags": [
+    {
+      "name": "yag1",
+      "position": 3009.9e-3,
+      "res": 0.1019
+    },
+    {
+      "name": "yag2",
+      "position": 6292.85e-3,
+      "res": 0.1219
+    },
+    {
+      "name": "yag3",
+      "position": 9525e-3,
+      "res": 0.1229
+    },
+    {
+      "name": "yag4",
+      "position": 11.373,
+      "res": 0.1083
+    },
+    {
+      "name": "yag5",
+      "position": 16.485,
+      "res": 0.1067
+    },
+    {
+      "name": "yag6",
+      "position": 14.923,
+      "res": 0.1181
+    },
+    {
+      "name": "yag7",
+      "position": 17792.7e-3,
+      "res": 0.0433
+    },
+    {
+      "name": "yag8",
+      "position": 18.821,
+      "res": 0.1126
+    },
+    {
+      "name": "yag9",
+      "position": 20.269,
+      "res": 0.1018
+    },
+    {
+      "name": "yag10",
+      "position": 22.85,
+      "res": 0.1105
+    },
+    {
+      "name": "yag11",
+      "position": 25126.95e-3,
+      "res": 0.0404
+    },
+    {
+      "name": "yag12",
+      "position": 27301.952e-3,
+      "res": 0.0491
+    },
+    {
+      "name": "yag13",
+      "position": 27978.1e-3,
+      "res": 0.0491
+    }
+  ],
+  "quads": [
+    {
+      "name": "quad1",
+      "position": 12255.5e-3,
+      "quad_strength_T_m": 9,
+      "length": 101.6e-3
+    },
+    {
+      "name": "quad2",
+      "position": 12500.102e-3,
+      "quad_strength_T_m": 9,
+      "length": 101.6e-3
+    },
+    {
+      "name": "quad3",
+      "position": 12884.15e-3,
+      "quad_strength_T_m": 9,
+      "length": 101.6e-3
+    },
+    {
+      "name": "quad4",
+      "position": 13592.302e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad5",
+      "position": 13855.7e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad6",
+      "position": 14109.7e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad7",
+      "position": 14382.75e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad8",
+      "position": 16706.85e-3,
+      "quad_strength_T_m": 9,
+      "length": 76.2e-3
+    },
+    {
+      "name": "quad9",
+      "position": 17.056,
+      "quad_strength_T_m": 9,
+      "length": 76.2e-3
+    },
+    {
+      "name": "quad10",
+      "position": 17.364,
+      "quad_strength_T_m": 9,
+      "length": 76.2e-3
+    },
+    {
+      "name": "quad11",
+      "position": 18.155,
+      "quad_strength_T_m": 9,
+      "length": 171.45e-3
+
+    },
+    {
+      "name": "quad12",
+      "position": 18437.352e-3,
+      "quad_strength_T_m": 9,
+      "length": 171.45e-3
+    },
+    {
+      "name": "quad13",
+      "position": 20866.1e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad14",
+      "position": 21.08,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad15",
+      "position": 23.62,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad16",
+      "position": 23872.952e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad17",
+      "position": 24.13,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad18",
+      "position": 25990.55e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad19",
+      "position": 26336.752e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    },
+    {
+      "name": "quad20",
+      "position": 26689.05e-3,
+      "quad_strength_T_m": 9,
+      "length": 168.402e-3
+    }
+  ],
+  "IPs": [
+    {
+      "name": "IP (PETS)",
+      "position":""
+    },
+    {
+      "name": "IP (ante)",
+      "position":""
+    },
+    {
+      "name": "IP (plasma)",
+      "position":""
+    }
+  ]
+}

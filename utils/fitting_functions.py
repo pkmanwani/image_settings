@@ -2,16 +2,21 @@
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
-import json
-from scipy.ndimage import median_filter, rotate
+from scipy.ndimage import median_filter
 from matplotlib.widgets import RectangleSelector
-import cv2
+from .fitting_methods import fit_gaussian_linear_background
+from scipy.signal import find_peaks
+import matplotlib.patches as patches
+from matplotlib.gridspec import GridSpec
 # Function to open H5 file and read images
 def get_images(file_path):
     with h5py.File(file_path, 'r') as f:
         images = f['images'][:]
         res = f['images'].attrs['resolution']
-        print(res)
+        print(f"Resolution from file is {res}")
+        if res is None:
+            res = 1
+            print("Setting res to 1")
     return images,res
 
 def create_circular_mask(image,center=None, radius=None):
@@ -86,7 +91,7 @@ def filter_bright_circle_and_fit(image):
     """
     # Load image dimensions
     h_full, w_full = image.shape
-    print("Original shape:", image.shape)
+    #print("Original shape:", image.shape)
 
     # Calculate the center and radius
     center_x, center_y = w_full // 2, h_full // 2
@@ -240,6 +245,251 @@ def calculate_rms_corrected(image):
     Ry = np.sqrt(Ynom / total_intensity)
     return Cx,Cy,Rx,Ry
 
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+def plot_2d_gaussian_overlay(overlay_images_dir, image, index, *params):
+    """
+    Plots the image with the 2D Gaussian contour overlaid and includes X & Y projections at the edges.
+
+    Args:
+        overlay_images_dir (str): Directory to save the output image.
+        image (ndarray): The original image.
+        index (int): Index for saving the image.
+        params (tuple): Parameters (Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, angle, res).
+    """
+    # Unpack parameters
+    Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, _, res = params
+
+    # Image dimensions in pixels
+    img_height, img_width = image.shape
+
+    # Compute bounds for cropping (Cx, Cy, Rx, Ry are in pixels)
+    x_min = int(Cx - 4*Rx)
+    x_max = int(Cx + 4*Rx)
+    y_min = int(Cy - 4*Ry)
+    y_max = int(Cy + 4*Ry)
+
+    # Crop the image to the region of interest
+    cropped_image = image[y_min:y_max, x_min:x_max]
+
+    # Convert parameters to mm
+    Cx, Cy = Cx * res, Cy * res
+    Sx, Sy, Rx, Ry = Sx * res, Sy * res, Rx * res, Ry * res
+    Sxy, Rxy = Sxy * (res ** 2), Rxy * (res ** 2)
+
+    # Image dimensions in mm
+    cropped_img_height, cropped_img_width = cropped_image.shape
+    cropped_img_height_mm, cropped_img_width_mm = cropped_img_height * res, cropped_img_width * res
+
+    # Compute covariance matrices and ellipses
+    cov_matrix_R = np.array([[Rx**2, Rxy], [Rxy, Ry**2]])
+    eigvals_R, eigvecs_R = np.linalg.eigh(cov_matrix_R)
+    major_axis_R = 4 * np.sqrt(eigvals_R[1])
+    minor_axis_R = 4 * np.sqrt(eigvals_R[0])
+    angle_R = np.degrees(np.arctan2(eigvecs_R[1, 1], eigvecs_R[0, 1]))
+
+    cov_matrix_sigma = np.array([[Sx ** 2, Sxy], [Sxy, Sy ** 2]])
+    eigvals_s, eigvecs_s = np.linalg.eigh(cov_matrix_sigma)
+    major_axis_s = 4 * np.sqrt(eigvals_s[1])
+    minor_axis_s = 4 * np.sqrt(eigvals_s[0])
+    angle_s = np.degrees(np.arctan2(eigvecs_s[1, 1], eigvecs_s[0, 1]))
+
+    # Compute projections and normalize them
+    x_projection = np.sum(cropped_image, axis=0)
+    y_projection = np.sum(cropped_image, axis=1)
+
+    # Normalize projections to fit inside the cropped image space
+    x_projection = (x_projection - x_projection.min()) / (x_projection.max() - x_projection.min()) * cropped_img_height * 0.2
+    y_projection = (y_projection - y_projection.min()) / (y_projection.max() - y_projection.min()) * cropped_img_width * 0.2
+
+    # Set up figure with black background
+    fig, ax = plt.subplots(edgecolor='white')
+    fig.patch.set_facecolor('black')  # Set the figure background to black
+    ax.set_facecolor('black')  # Set the axes background to black
+
+    # Overlay X projection at the top edge of the image
+    x_range = np.linspace(0, cropped_img_width_mm, cropped_img_width) - (Cx-x_min*res)
+    ax.plot(x_range, cropped_img_height_mm - x_projection * res, color='white',
+            linewidth=1)  # Flipped to align with image
+
+    # Overlay Y projection at the right edge of the image
+    y_range = np.linspace(0, cropped_img_height_mm, cropped_img_height) - (Cy-y_min*res)
+    ax.plot(cropped_img_width_mm - y_projection * res, y_range, color='white', linewidth=1)  # Flipped to align
+
+    # Adjusted ellipses for the cropped region
+    ax.add_patch(patches.Ellipse((0, 0), width=major_axis_R, height=minor_axis_R,
+                                 angle=angle_R, edgecolor='cyan', facecolor='none',
+                                 linewidth=1, linestyle="dotted"))
+    ax.add_patch(patches.Ellipse((0,0), width=major_axis_s, height=minor_axis_s,
+                                 angle=angle_s, edgecolor='red', facecolor='none',
+                                 linewidth=1, linestyle="dotted"))
+
+    # Add text labels near ellipses inside the image
+    ax.text( + major_axis_R / 2, - minor_axis_R / 2, r"4 R", color="cyan", fontsize=10, weight="bold", ha='center')
+    ax.text( - major_axis_R / 2,  - minor_axis_R / 2, r"4 $\sigma$", color="red", fontsize=10, weight="bold",
+            ha='center')
+    # Plot cropped image
+    extent = [- (Cx-x_min*res), cropped_img_width_mm - (Cx-x_min*res), cropped_img_height_mm - (Cy-y_min*res),- (Cy-y_min*res)]  # Adjusting for mm scaling
+    ax.imshow(cropped_image, cmap='inferno', origin='upper', extent=extent)
+    # Set xlim and ylim to match image dimensions in mm
+    ax.set_xlim([-cropped_img_width_mm/2, cropped_img_width_mm/2])
+    ax.set_ylim([cropped_img_height_mm/2,-cropped_img_height_mm/2])  # Inverted to match image coordinates
+
+    # Set axis labels in mm
+    ax.set_xlabel("X [mm]", color="white", fontsize=12)
+    ax.set_ylabel("Y [mm]", color="white", fontsize=12)
+
+    # Set ticks and labels to white for visibility
+    ax.tick_params(axis='both', colors='white', labelsize=10)
+
+    ax.set_frame_on(True)
+
+    # Save the figure
+    plt.savefig(f"{overlay_images_dir}/overlay_{index}.png", dpi=150, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def compute_beam_parameters(masked_image, threshold, res, compute_covariance=True):
+    """
+    Computes beam parameters Cx, Cy, Sx, Sy, Rx, and Ry at a given threshold.
+
+    Args:
+        masked_image (ndarray): The input masked image.
+        threshold (float): The background threshold value.
+
+    Returns:
+        tuple: (Cx, Cy, Sx, Sy, Rx, Ry)
+    """
+
+    # Apply threshold
+    temp_im = masked_image - threshold
+    temp_im[temp_im < 0] = 0  # Remove negative values
+
+    # Compute projections
+    x_projection = np.sum(temp_im, axis=0)
+    y_projection = np.sum(temp_im, axis=1)
+
+    # Fit Gaussian to projections
+    _, Cx, Sx, _ = fit_gaussian_linear_background(x_projection, visualize=False)
+    _, Cy, Sy, _ = fit_gaussian_linear_background(y_projection, visualize=False)
+    Sxy = None
+    if compute_covariance:
+        # Define rotation angle
+        angle_projection = -45  # degrees
+        theta = np.radians(angle_projection)
+
+        # Create rotation matrix for u and v coordinates
+        rotation_matrix = np.array([[np.cos(theta), np.sin(theta)],
+                                    [-np.sin(theta), np.cos(theta)]])
+
+        # Get the shape of the image
+        height, width = temp_im.shape
+
+        # Generate meshgrid for the x and y coordinates
+        x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+
+        # Stack coordinates into (N, 2) array
+        coordinates = np.vstack([x_coords.ravel(), y_coords.ravel()]).T
+
+        # Apply rotation to the coordinates
+        transformed_coords = coordinates @ rotation_matrix.T
+
+        # Reshape back into image dimensions
+        u_coords = transformed_coords[:, 0].reshape((height, width))
+        v_coords = transformed_coords[:, 1].reshape((height, width))
+
+        # Compute projections in u and v directions
+        u_projection = np.sum(temp_im * u_coords, axis=0)
+        v_projection = np.sum(temp_im * v_coords, axis=1)
+
+        # Fit Gaussian to u and v projections
+        _, Cu, Su, _ = fit_gaussian_linear_background(u_projection, visualize=False)
+        _, Cv, Sv, _ = fit_gaussian_linear_background(v_projection, visualize=False)
+
+        # Compute shear term
+        Sxy = -(Su ** 2 - Sv ** 2) / 4
+    # Compute RMS sizes
+    Rx, Ry, Rxy = calculate_rms_vectorized(temp_im, Cx, Cy, compute_covariance)
+
+    angle = 0.5 * np.arctan2(2 * Rxy, Rx - Ry)
+    return Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, angle, res
+
+
+def find_threshold_crossing(masked_image, threshold_images_dir, index, debug):
+    """
+    Finds the threshold value where the gradient of RMS size crosses the mean gradient after reaching a maximum.
+
+    Args:
+        masked_image (ndarray): The input masked image.
+        threshold_images_dir (str): Directory path to save the threshold plot.
+        index (int): Index to differentiate saved plots.
+
+    Returns:
+        float or None: The threshold value where the gradient of Rx crosses the mean after the maximum.
+    """
+
+    # Generate threshold values
+    thresholds = np.linspace(0, np.mean(masked_image) * 2, 30)
+    Cx, Cy, Sx, Sy, Rx, Ry = np.zeros((6, len(thresholds)))
+
+    # Iterate through thresholds
+    for j, bg in enumerate(thresholds):
+        Cx[j], Cy[j], Sx[j], Sy[j], _, Rx[j], Ry[j], _, _, _ = compute_beam_parameters(masked_image, bg, 1)
+
+    print("Done processing")
+
+    # Compute derivatives
+    grad_Rx = np.gradient(Rx, thresholds)
+    grad_Ry = np.gradient(Ry, thresholds)
+
+    # Compute magnitudes
+    magnitude = np.sqrt(np.abs(grad_Rx * grad_Ry))
+    mean_threshold = np.mean(magnitude)
+
+    # Find the first peak
+    peaks, _ = find_peaks(magnitude)
+
+    if len(peaks) > 0:
+        max_idx = peaks[0]  # First detected peak
+    else:
+        max_idx = np.argmax(magnitude)  # Fallback to global maximum
+
+    #print(f"Using max_idx = {max_idx}")
+
+    # Find first crossing after the peak
+    crossing_idx = np.where((magnitude[max_idx:] < mean_threshold))[0]
+    if len(crossing_idx) > 0:
+        crossing_idx = crossing_idx[0] + max_idx  # Adjust for slicing offset
+        threshold_value = thresholds[crossing_idx]
+        print(f"Threshold where RMS gradient crosses mean after peak: {threshold_value}")
+    else:
+        threshold_value = None
+        print("No crossing found after maximum.")
+
+    if debug == True:
+        # Plot for visualization
+        plt.plot(thresholds, np.sqrt(Sx * Sy) / np.max(np.sqrt(Sx * Sy)), label="Normalized |Sxy|")
+        plt.plot(thresholds, np.sqrt(Rx * Ry) / np.max(np.sqrt(Rx * Ry)), label="Normalized |Rxy|")
+        plt.plot(thresholds, magnitude, label="|dRx/dThresholds|")
+        plt.axhline(mean_threshold, color='red', linestyle='--', label="Mean Threshold")
+        if threshold_value is not None:
+            plt.axvline(threshold_value, color='green', linestyle='--', label="Threshold Crossing")
+        plt.legend()
+        # Save the figure
+        plt.savefig(f"{threshold_images_dir}/threshold_{index}.png")
+        plt.close()
+
+    return threshold_value
 """
 # Function to filter the image 
 def filter_image(image, sigma=2):
