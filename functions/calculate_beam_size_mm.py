@@ -2,26 +2,32 @@ import json
 
 def update_parameters():
     # Load parameters.json (dataset)
-    with open("2025_02_20/DowntheLine/parameters.json", "r") as f:
+    with open("../beamlines/awa/2025_02_20/DowntheLine/parameters.json", "r") as f:
         dataset = json.load(f)
 
-    # Load res.json (resolution values)
-    with open("../beamlines/awa/res.json", "r") as f:
-        res_data = json.load(f)[0]  # Extract the dictionary inside the list
+    # Load elements.json (resolution values)
+    with open("../beamlines/awa/elements.json", "r") as f:
+        elements = json.load(f)
 
-    # Function to extract the correct key from the filename
+    # Convert elements list to a dictionary mapping names to resolutions
+    res_map = {entry["name"].lower(): entry["res"] for entry in elements["yags"]}
+
+    # Account for SlitYag being Yag7
+    res_map["slityag"] = res_map.get("yag7", None)
+
+    # Function to extract the correct resolution key from the filename
     def get_res_key(filename):
-        for key in res_data.keys():
-            if key in filename:
+        for key in res_map.keys():
+            if key.lower() in filename.lower():
                 return key
         return None
 
-    # Update dataset with correct resolution only if "res" does not exist
+    # Update dataset with correct resolution if "res" is missing or equals 1
     for entry in dataset:
-        if "res" not in entry:  # Check if "res" is already present
+        if "res" not in entry or entry["res"] == 1:
             key = get_res_key(entry["filename"])
-            if key and key in res_data:
-                entry["res"] = res_data[key]
+            if key and key in res_map and res_map[key] is not None:
+                entry["res"] = res_map[key]
 
     # Save updated dataset back to parameters.json
     with open("parameters.json", "w") as f:
@@ -29,18 +35,14 @@ def update_parameters():
 
     print("Updated parameters.json successfully!")
 
-    # Load updated parameters.json
-    with open("parameters.json", "r") as f:
-        dataset = json.load(f)
-
     # Convert to mm using res
     for entry in dataset:
         if "res" in entry:  # Ensure "res" is available
             res = entry["res"]
-            entry["Rx_mm"] = entry["Rx_final"] * res
-            entry["Ry_mm"] = entry["Ry_final"] * res
-            entry["Sx_mm"] = entry["Sx_final"] * res
-            entry["Sy_mm"] = entry["Sy_final"] * res
+            entry["Rx_mm"] = entry["Rx_final"][0] * res
+            entry["Ry_mm"] = entry["Ry_final"][0] * res
+            entry["Sx_mm"] = entry["Sx_final"][0] * res
+            entry["Sy_mm"] = entry["Sy_final"][0] * res
 
     # Save updated parameters.json
     with open("parameters.json", "w") as f:

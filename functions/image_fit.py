@@ -15,10 +15,10 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
     images,res = get_images(file_path)
     n_images=len(images)
     # Directories to store images
-    masked_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.')[0],'masked_images')
-    filtered_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.')[0],'filtered_images')
-    threshold_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.')[0],'threshold_images')
-    overlayed_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.')[0],'overlayed_images')
+    masked_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.h')[0],'masked_images')
+    filtered_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.h')[0],'filtered_images')
+    threshold_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.h')[0],'threshold_images')
+    overlayed_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.h')[0],'overlayed_images')
     # Create directories if they don't exist
     if debug==True:
         os.makedirs(masked_images_dir, exist_ok=True)

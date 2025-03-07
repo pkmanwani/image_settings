@@ -268,123 +268,105 @@ def plot_2d_gaussian_overlay(overlay_images_dir, image, index, *params):
         index (int): Index for saving the image.
         params (tuple): Parameters (Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, angle, res).
     """
-    # Unpack parameters
-    Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, _, res = params
+    try:
+        # Unpack parameters
+        Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, _, res = params
 
-    # Image dimensions in pixels
-    img_height, img_width = image.shape
+        # Image dimensions in pixels
+        img_height, img_width = image.shape
 
-    # Compute bounds for cropping (Cx, Cy, Rx, Ry are in pixels)
-    x_min = int(Cx - 4*Rx)
-    x_max = int(Cx + 4*Rx)
-    y_min = int(Cy - 4*Ry)
-    y_max = int(Cy + 4*Ry)
+        # Compute bounds for cropping (Cx, Cy, Rx, Ry are in pixels)
+        x_min = int(Cx - 4*Rx)
+        x_max = int(Cx + 4*Rx)
+        y_min = int(Cy - 4*Ry)
+        y_max = int(Cy + 4*Ry)
 
-    # Crop the image to the region of interest
-    cropped_image = image[y_min:y_max, x_min:x_max]
+        # Ensure valid indices
+        x_min, x_max = max(0, x_min), min(img_width, x_max)
+        y_min, y_max = max(0, y_min), min(img_height, y_max)
 
-    # Convert parameters to mm
-    Cx, Cy = Cx * res, Cy * res
-    Sx, Sy, Rx, Ry = Sx * res, Sy * res, Rx * res, Ry * res
-    Sxy, Rxy = Sxy * (res ** 2), Rxy * (res ** 2)
+        # Crop the image to the region of interest
+        cropped_image = image[y_min:y_max, x_min:x_max]
+        if cropped_image.size == 0:
+            print(f"Warning: Empty cropped image for index {index}, skipping...")
+            return
 
-    # Image dimensions in mm
-    cropped_img_height, cropped_img_width = cropped_image.shape
-    cropped_img_height_mm, cropped_img_width_mm = cropped_img_height * res, cropped_img_width * res
+        # Convert parameters to mm
+        Cx, Cy = Cx * res, Cy * res
+        Sx, Sy, Rx, Ry = Sx * res, Sy * res, Rx * res, Ry * res
+        Sxy, Rxy = Sxy * (res ** 2), Rxy * (res ** 2)
 
-    # Compute covariance matrices and ellipses
-    cov_matrix_R = np.array([[Rx**2, Rxy], [Rxy, Ry**2]])
-    eigvals_R, eigvecs_R = np.linalg.eigh(cov_matrix_R)
-    major_axis_R = 4 * np.sqrt(eigvals_R[1])
-    minor_axis_R = 4 * np.sqrt(eigvals_R[0])
-    angle_R = np.degrees(np.arctan2(eigvecs_R[1, 1], eigvecs_R[0, 1]))
+        # Image dimensions in mm
+        cropped_img_height, cropped_img_width = cropped_image.shape
+        cropped_img_height_mm, cropped_img_width_mm = cropped_img_height * res, cropped_img_width * res
 
-    cov_matrix_sigma = np.array([[Sx ** 2, Sxy], [Sxy, Sy ** 2]])
-    eigvals_s, eigvecs_s = np.linalg.eigh(cov_matrix_sigma)
-    major_axis_s = 4 * np.sqrt(eigvals_s[1])
-    minor_axis_s = 4 * np.sqrt(eigvals_s[0])
-    angle_s = np.degrees(np.arctan2(eigvecs_s[1, 1], eigvecs_s[0, 1]))
+        # Compute covariance matrices and ellipses
+        cov_matrix_R = np.array([[Rx**2, Rxy], [Rxy, Ry**2]])
+        eigvals_R, eigvecs_R = np.linalg.eigh(cov_matrix_R)
+        major_axis_R = 4 * np.sqrt(eigvals_R[1])
+        minor_axis_R = 4 * np.sqrt(eigvals_R[0])
+        angle_R = np.degrees(np.arctan2(eigvecs_R[1, 1], eigvecs_R[0, 1]))
 
-    # Compute projections and normalize them
-    x_projection = np.sum(cropped_image, axis=0)
-    y_projection = np.sum(cropped_image, axis=1)
+        # Compute projections and normalize them
+        x_projection = np.sum(cropped_image, axis=0)
+        y_projection = np.sum(cropped_image, axis=1)
 
-    # Normalize projections to fit inside the cropped image space
-    x_projection = (x_projection - x_projection.min()) / (x_projection.max() - x_projection.min()) * cropped_img_height * 0.2
-    y_projection = (y_projection - y_projection.min()) / (y_projection.max() - y_projection.min()) * cropped_img_width * 0.2
+        if x_projection.size == 0 or y_projection.size == 0:
+            print(f"Warning: Empty projection data for index {index}, skipping...")
+            return
 
-    # Set up figure with black background
-    fig, ax = plt.subplots(edgecolor='white')
-    fig.patch.set_facecolor('black')  # Set the figure background to black
-    ax.set_facecolor('black')  # Set the axes background to black
+        if np.ptp(x_projection) == 0 or np.ptp(y_projection) == 0:
+            print(f"Warning: Constant projection data for index {index}, skipping...")
+            return
 
-    # Overlay X projection at the bottom edge of the image
-    x_range = np.linspace(0, cropped_img_width_mm, cropped_img_width) - (Cx-x_min*res)
-    ax.plot(x_range, cropped_img_height_mm - x_projection * res - (Cy-y_min*res), color='white',
-            linewidth=1)  # Flipped to align with image
+        x_projection = (x_projection - x_projection.min()) / (x_projection.max() - x_projection.min()) * cropped_img_height * 0.2
+        y_projection = (y_projection - y_projection.min()) / (y_projection.max() - y_projection.min()) * cropped_img_width * 0.2
 
-    # Overlay Y projection at the right edge of the image
-    y_range = np.linspace(0, cropped_img_height_mm, cropped_img_height) - (Cy-y_min*res)
-    ax.plot(0 + y_projection * res - (Cx-x_min*res), y_range, color='white', linewidth=1)  # Flipped to align
+        # Set up figure with black background
+        fig, ax = plt.subplots(edgecolor='white')
+        fig.patch.set_facecolor('black')
+        ax.set_facecolor('black')
 
-    # Adjusted ellipses for the cropped region
-    ax.add_patch(patches.Ellipse((0, 0), width=major_axis_R, height=minor_axis_R,
-                                 angle=angle_R, edgecolor='cyan', facecolor='none',
-                                 linewidth=1, linestyle="dotted"))
-    ax.add_patch(patches.Ellipse((0,0), width=major_axis_s, height=minor_axis_s,
-                                 angle=angle_s, edgecolor='red', facecolor='none',
-                                 linewidth=1, linestyle="dotted"))
+        # Overlay projections
+        x_range = np.linspace(0, cropped_img_width_mm, cropped_img_width) - (Cx-x_min*res)
+        ax.plot(x_range, cropped_img_height_mm - x_projection * res - (Cy-y_min*res), color='white', linewidth=1)
 
-    # Add text labels near ellipses inside the image
-    ax.text( + major_axis_R / 2, - minor_axis_R / 2, r"4 R", color="cyan", fontsize=10, weight="bold", ha='center')
-    ax.text( - major_axis_R / 2,  - minor_axis_R / 2, r"4 $\sigma$", color="red", fontsize=10, weight="bold",
-            ha='center')
-    # Plot cropped image
-    extent = [- (Cx-x_min*res), cropped_img_width_mm - (Cx-x_min*res), cropped_img_height_mm - (Cy-y_min*res),- (Cy-y_min*res)]  # Adjusting for mm scaling
-    ax.imshow(cropped_image, cmap='inferno', origin='upper', extent=extent)
-    # Set xlim and ylim to match image dimensions in mm
-    ax.set_xlim([-cropped_img_width_mm/2, cropped_img_width_mm/2])
-    ax.set_ylim([cropped_img_height_mm/2,-cropped_img_height_mm/2])  # Inverted to match image coordinates
+        y_range = np.linspace(0, cropped_img_height_mm, cropped_img_height) - (Cy-y_min*res)
+        ax.plot(0 + y_projection * res - (Cx-x_min*res), y_range, color='white', linewidth=1)
 
-    # Set axis labels in mm
-    ax.set_xlabel("X [mm]", color="white", fontsize=12)
-    ax.set_ylabel("Y [mm]", color="white", fontsize=12)
+        # Draw ellipses
+        ax.add_patch(patches.Ellipse((0, 0), width=major_axis_R, height=minor_axis_R,
+                                     angle=angle_R, edgecolor='cyan', facecolor='none',
+                                     linewidth=1, linestyle="dotted"))
 
-    # Set ticks and labels to white for visibility
-    ax.tick_params(axis='both', colors='white', labelsize=10)
-    # Define the number of ticks you want
-    num_ticks_x = 6  # Increase for finer x-axis ticks
-    num_ticks_y = 6  # Increase for finer y-axis ticks
+        # Plot cropped image
+        extent = [- (Cx-x_min*res), cropped_img_width_mm - (Cx-x_min*res), cropped_img_height_mm - (Cy-y_min*res),- (Cy-y_min*res)]
+        ax.imshow(cropped_image, cmap='inferno', origin='upper', extent=extent)
 
-    # Generate tick positions
-    x_ticks = np.linspace(-cropped_img_width_mm / 2, cropped_img_width_mm / 2, num_ticks_x)
-    y_ticks = np.linspace(cropped_img_height_mm / 2, -cropped_img_height_mm / 2, num_ticks_y)
+        # Set axis properties
+        ax.set_xlim([-cropped_img_width_mm/2, cropped_img_width_mm/2])
+        ax.set_ylim([cropped_img_height_mm/2,-cropped_img_height_mm/2])
 
-    # Round to two decimal places
-    x_ticks = np.round(x_ticks, 1)
-    y_ticks = np.round(y_ticks, 1)
+        ax.set_xlabel("X [mm]", color="white", fontsize=12)
+        ax.set_ylabel("Y [mm]", color="white", fontsize=12)
+        ax.tick_params(axis='both', colors='white', labelsize=10)
 
-    # Ensure 0 is in the tick list
-    if 0 not in x_ticks:
-        x_ticks = np.sort(np.append(x_ticks, 0.0))
-    if 0 not in y_ticks:
-        y_ticks = np.sort(np.append(y_ticks, 0.0))
+        # Define and apply ticks
+        num_ticks_x, num_ticks_y = 4, 4
+        x_ticks = np.round(np.linspace(-cropped_img_width_mm / 2, cropped_img_width_mm / 2, num_ticks_x), 1)
+        y_ticks = np.round(np.linspace(cropped_img_height_mm / 2, -cropped_img_height_mm / 2, num_ticks_y), 1)
+        if 0 not in x_ticks: x_ticks = np.sort(np.append(x_ticks, 0.0))
+        if 0 not in y_ticks: y_ticks = np.sort(np.append(y_ticks, 0.0))
+        ax.set_xticks(x_ticks)
+        ax.set_yticks(y_ticks)
 
-    # Apply ticks
-    ax.set_xticks(x_ticks)
-    ax.set_yticks(y_ticks)
+        # Save the figure
+        plt.tight_layout()
+        plt.savefig(f"{overlay_images_dir}/overlay_{index}.png", dpi=150, bbox_inches='tight', pad_inches=0)
+        plt.close()
 
-    # Set tick parameters
-    ax.tick_params(axis='both', colors='white', labelsize=10)
-    # Apply ticks
-    ax.set_xticks(x_ticks)
-    ax.set_yticks(y_ticks)
-
-    ax.set_frame_on(True)
-
-    # Save the figure
-    plt.savefig(f"{overlay_images_dir}/overlay_{index}.png", dpi=150, bbox_inches='tight', pad_inches=0)
-    plt.close()
+    except Exception as e:
+        print(f"Error processing index {index}: {e}")
 
 def compute_beam_parameters(masked_image, threshold, res, compute_covariance=True):
     """

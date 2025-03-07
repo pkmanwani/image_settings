@@ -32,9 +32,9 @@ ry_mm = []
 for entry in data:
     filename = entry["filename"]
     quad = float(filename.split("quad_")[1].split("_")[0])  # Extract quad value
-    res = entry["res"]
-    rx_mm.append(entry["Rx_final"] * res)  # Convert to mm
-    ry_mm.append(entry["Ry_final"] * res)  # Convert to mm
+    res = entry["res"][0]
+    rx_mm.append(entry["Rx_final"][0] * res)  # Convert to mm
+    ry_mm.append(entry["Ry_final"][0] * res)  # Convert to mm
     quad_values.append(quad)
 
 # Convert to numpy arrays
@@ -49,7 +49,7 @@ rx_mm = rx_mm[sort_idx]
 ry_mm = ry_mm[sort_idx]
 
 # Apply moving average smoothing
-def moving_average(data, window_size=4):
+def moving_average(data, window_size=1):
     return np.convolve(data, np.ones(window_size)/window_size, mode='valid')
 
 rx_mm_smooth = moving_average(rx_mm)
@@ -60,8 +60,8 @@ quad_values_smooth = moving_average(quad_values)
 quad_strength = np.array(quad_values_smooth) / 0.893
 kval_x = -quad_strength * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))
 kval_y = -quad_strength * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))
-kval_y = kval_y[2:-1]
-ry_mm_smooth = ry_mm_smooth[2:-1]
+kval_y = kval_y[:]
+ry_mm_smooth = ry_mm_smooth[:]
 # Convert beam sizes to meters and square values
 rx_sqr = (rx_mm_smooth * 1e-3) ** 2
 ry_sqr = (ry_mm_smooth * 1e-3) ** 2
@@ -83,10 +83,10 @@ kval_fit_y = np.linspace(min(kval_y), max(kval_y), 100)
 ry_fit = quad_fit(kval_fit_y, *params_ry)
 
 quad_length = 0.168
-Q6 = 14109.7e-3
+Q7 = 14382.75e-3
 YAG7 = 17792.7e-3
 YAG6 = 14922.5e-3
-drift_length = YAG7 - Q6 - quad_length/2
+drift_length = YAG7 - Q7 - quad_length/2
 
 sq11_x = params_rx[0] / ((drift_length**2) * (quad_length**2))
 sq12_x = (params_rx[1] - (2 * drift_length * quad_length * sq11_x)) / (2 * (drift_length**2) * quad_length)
