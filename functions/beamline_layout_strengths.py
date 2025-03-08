@@ -9,7 +9,7 @@ import re
 c = 299792458  # Speed of light in m/s
 
 # Load JSON file
-file_path = "../beamlines/awa/elements.json"  # Update with actual file path
+file_path = "../beamlines/awa/2025_02_20/elements.json"  # Update with actual file path
 with open(file_path) as file:
     beamline_data = json.load(file)
 

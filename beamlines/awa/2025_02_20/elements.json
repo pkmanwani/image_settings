@@ -2,8 +2,7 @@
   "beam" : [
     {
       "pz": 58e6,
-      "sigmaz": 6e-12,
-
+      "sigmaz": 6e-12
     }
   ],
   "linacs": [
@@ -14,67 +13,67 @@
   ],
   "yags": [
     {
-      "name": "yag1",
+      "name": ["yag1","dyg1"],
       "position": 3009.9e-3,
       "res": 0.1019
     },
     {
-      "name": "yag2",
+      "name": ["yag2","dyg2"],
       "position": 6292.85e-3,
       "res": 0.1219
     },
     {
-      "name": "yag3",
+      "name": ["yag3","dyg3"],
       "position": 9525e-3,
       "res": 0.1229
     },
     {
-      "name": "yag4",
+      "name": ["yag4","dyg4"],
       "position": 11.373,
       "res": 0.1083
     },
     {
-      "name": "yag5",
+      "name": ["yag5","dyg5"],
       "position": 16.485,
       "res": 0.1067
     },
     {
-      "name": "yag6",
+      "name": ["yag6","dyg6"],
       "position": 14.923,
       "res": 0.1181
     },
     {
-      "name": "yag7",
+      "name": ["yag7","slityag"],
       "position": 17792.7e-3,
       "res": 0.0433
     },
     {
-      "name": "yag8",
+      "name": ["yag8","dyg8"],
       "position": 18.821,
       "res": 0.1126
     },
     {
-      "name": "yag9",
+      "name": ["yag9","dyg9"],
       "position": 20.269,
       "res": 0.1018
     },
     {
-      "name": "yag10",
+      "name": ["yag10","dyg10"],
       "position": 22.85,
       "res": 0.1105
     },
     {
-      "name": "yag11",
+      "name": ["yag11","dyg11"],
       "position": 25126.95e-3,
       "res": 0.0404
     },
     {
-      "name": "yag12",
+      "name": ["yag12","dyg12"],
       "position": 27301.952e-3,
       "res": 0.0491
     },
     {
-      "name": "yag13",
+      "name": ["yag13","dyg13"],
       "position": 27978.1e-3,
       "res": 0.0491
     }

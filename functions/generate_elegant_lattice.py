@@ -47,5 +47,5 @@ def generate_elegant_lattice(file_path):
 
 
 if __name__ == "__main__":
-    file_path = "../beamlines/awa/elements.json"
+    file_path = "../beamlines/awa/2025_02_20/elements.json"
     generate_elegant_lattice(file_path)

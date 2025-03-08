@@ -1,132 +1,217 @@
 import os
+import h5py
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp2d
+import matplotlib.gridspec as gridspec
+from matplotlib.ticker import NullFormatter
+from matplotlib import rc
 from scipy.optimize import curve_fit
-
-# Physical constants
-e   = 1.602e-19  # Electron charge (C)
-m   = 9.11e-31   # Electron mass (kg)
-c   = 299792458  # Speed of Light (m/s)
-m0  = 511000     # Electron rest mass (eV/c)
+import sympy as sym
+from sympy import MatrixSymbol, Matrix
+from sympy import *
+import math
+import matplotlib.patches as patches
+from scipy.ndimage import gaussian_filter
+import matplotlib
+# ==========================================================================
+# Basic parameters
+e   = 1.602e-19   # Electron charge, Coulomb
+m   = 9.11e-31    # Electron mass
+me  = 0.511e+6    # Electron rest mass (MeV/c)
+c   = 299792458   # Speed of Light [m/s]
+e0  = 8.85e-12    # Electric permittivity of the free space
+mu0 = 4*np.pi*1E-7# Permeability of the free space
+mp = 938.272e+6   # proton rest mass (eV/c)
+m0 = 511000
 mc2 = m0
 EMASS = mc2
+emass = m0
+clite = c
 
-# Beam parameters
-Ebeam1 = 63E6  # Initial energy in GeV
-gamma1 = (Ebeam1 + EMASS) / EMASS
-beta1  = np.sqrt(1 - (1 / gamma1**2))
-P01    = gamma1 * beta1 * mc2
+# Energy and gamma
+Ebeam1   = 45.3E6 #; %//initial energy in GeV
+gamma1   = (Ebeam1 + EMASS) / EMASS
+beta1    = np.sqrt(1 - (1 / gamma1**2))
+P01      = gamma1 * beta1 * mc2
 pCentral = P01 / EMASS
 
-# Load parameters from JSON file
-json_file_path = 'parameters.json'
+# Load data from JSON file
+json_file_path = os.path.join('2024_07_18', 'data', 'all_statistics.json')
 with open(json_file_path, 'r') as json_file:
     data = json.load(json_file)
 
-# Extract necessary values
-quad_values = []
-rx_mm = []
-ry_mm = []
+sigx = data['Sx']['mean']
+stdx = data['Sx']['std']
+sigy = data['Sy']['mean']
+stdy = data['Sy']['std']
+current = data['quad_current']
 
-for entry in data:
-    filename = entry["filename"]
-    quad = float(filename.split("quad_")[1].split("_")[0])  # Extract quad value
-    res = entry["res"][0]
-    rx_mm.append(entry["Rx_final"][0] * res)  # Convert to mm
-    ry_mm.append(entry["Ry_final"][0] * res)  # Convert to mm
-    quad_values.append(quad)
+# Convert current to float
+current = list(map(float, current))
+# Count to T/m
+count_tm = np.array(current) /0.893
 
-# Convert to numpy arrays
-quad_values = np.array(quad_values)
-rx_mm = np.array(rx_mm)
-ry_mm = np.array(ry_mm)
+# T/m to m^-2
+kvalh = -np.array(count_tm) * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))
+kvalv = np.array(count_tm) * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))
 
-# Sort by quad values
-sort_idx = np.argsort(quad_values)
-quad_values = quad_values[sort_idx]
-rx_mm = rx_mm[sort_idx]
-ry_mm = ry_mm[sort_idx]
-
-# Apply moving average smoothing
-def moving_average(data, window_size=1):
-    return np.convolve(data, np.ones(window_size)/window_size, mode='valid')
-
-rx_mm_smooth = moving_average(rx_mm)
-ry_mm_smooth = moving_average(ry_mm)
-quad_values_smooth = moving_average(quad_values)
-
-# Convert quadrupole strength to m^-2
-quad_strength = np.array(quad_values_smooth) / 0.893
-kval_x = -quad_strength * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))
-kval_y = -quad_strength * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))
-kval_y = kval_y[:]
-ry_mm_smooth = ry_mm_smooth[:]
-# Convert beam sizes to meters and square values
-rx_sqr = (rx_mm_smooth * 1e-3) ** 2
-ry_sqr = (ry_mm_smooth * 1e-3) ** 2
-
-# Fit function
-def quad_fit(x, a, b, c):
-    return a * x**2 + b * x + c
-
-# Curve fitting
-params_rx, _ = curve_fit(quad_fit, kval_x, rx_sqr)
-params_ry, _ = curve_fit(quad_fit, kval_y, ry_sqr)
-
-# Generate fit curves
-kval_fit_x = np.linspace(min(kval_x), max(kval_x), 100)
-
-rx_fit = quad_fit(kval_fit_x, *params_rx)
-kval_fit_y = np.linspace(min(kval_y), max(kval_y), 100)
-
-ry_fit = quad_fit(kval_fit_y, *params_ry)
-
-quad_length = 0.168
-Q7 = 14382.75e-3
+# =====================================================================
+quad_length = 0.12
+Q6 = 14109.7e-3
 YAG7 = 17792.7e-3
 YAG6 = 14922.5e-3
-drift_length = YAG7 - Q7 - quad_length/2
+drift_length = YAG6 - Q6
 
-sq11_x = params_rx[0] / ((drift_length**2) * (quad_length**2))
-sq12_x = (params_rx[1] - (2 * drift_length * quad_length * sq11_x)) / (2 * (drift_length**2) * quad_length)
-sq22_x = (params_rx[2] - sq11_x - (2 * drift_length * sq12_x)) / (drift_length**2)
+# Convert to meters and square values
+sigx_sqr = np.array(sigx) * 1e-3
+sigx_sqr = sigx_sqr**2
+
+sigy_sqr = np.array(sigy) * 1e-3
+sigy_sqr = sigy_sqr**2
+
+stdx_sqr = np.array(stdx) * 1e-3
+stdx_sqr = stdx_sqr**2
+
+stdy_sqr = np.array(stdy) * 1e-3
+stdy_sqr = stdy_sqr**2
+
+starth = 0
+endh = len(sigx_sqr)
+
+startv = 0
+endv = len(sigy_sqr)
+
+sigx_sqr = sigx_sqr[starth:endh]
+sigy_sqr = sigy_sqr[startv:endv]
+stdx_sqr = stdx_sqr[starth:endh]
+stdy_sqr = stdy_sqr[startv:endv]
+kvalh = kvalh[starth:endh]
+kvalv = kvalv[startv:endv]
+
+# Optimization
+def lq(x, a, b, c):
+    return (a * (x**2) + b * x + c)
+
+parametersx, covariancex = curve_fit(lq, kvalh, sigx_sqr)
+ax = parametersx[0]
+bx = parametersx[1]
+cx = parametersx[2]
+
+parametersy, covariancey = curve_fit(lq, kvalv, sigy_sqr)
+ay = parametersy[0]
+by = parametersy[1]
+cy = parametersy[2]
+
+kval_fith = np.linspace(min(kvalh), max(kvalh), 500)
+kval_fitv = np.linspace(min(kvalv), max(kvalv), 500)
+fitx = (ax * (kval_fith**2) + bx * kval_fith + cx)
+fity = (ay * (kval_fitv**2) + by * kval_fitv + cy)
+
+# Emittance calculation
+sq11_x = ax / ((drift_length**2) * (quad_length**2))
+sq12_x = (bx - (2 * drift_length * quad_length * sq11_x)) / (2 * (drift_length**2) * quad_length)
+sq21_x = sq12_x
+sq22_x = (cx - sq11_x - (2 * drift_length * sq12_x)) / (drift_length**2)
+
+# Calculation of the geometrical emittance
 ex = np.sqrt((sq11_x * sq22_x) - (sq12_x**2))
-enx = pCentral * ex
 
-sq11_y = params_ry[0] / ((drift_length**2) * (quad_length**2))
-sq12_y = (params_ry[1] - (2 * drift_length * quad_length * sq11_y)) / (2 * (drift_length**2) * quad_length)
-sq22_y = (params_ry[2] - sq11_y - (2 * drift_length * sq12_y)) / (drift_length**2)
+# Calculation of the normalized emittance
+enx = (pCentral * ex)
+
+sq11_y = ay / ((drift_length**2) * (quad_length**2))
+sq12_y = (by - (2 * drift_length * quad_length * sq11_y)) / (2 * (drift_length**2) * quad_length)
+sq12_y = (by - (2 * drift_length * quad_length * sq11_y)) / (2 * (drift_length**2) * quad_length)
+sq21_y = sq12_y
+sq22_y = (cy - sq11_y - (2 * drift_length * sq12_y)) / (drift_length**2)
+
+# Calculation of the geometrical emittance
 ey = np.sqrt((sq11_y * sq22_y) - (sq12_y**2))
-eny = pCentral * ey
+
+# Calculation of the normalized emittance
+eny = (pCentral * ey)
 
 # Twiss parameters
 alpha_x = -sq12_x / ex
 beta_x = sq11_x / ex
-alpha_y = -sq12_y / ey
-beta_y = sq11_y / ey
 
-# Print results
+alpha_y = -sq12_y / ex
+beta_y = sq11_y / ex
+
 print('========================================')
-print(f'enx: {enx * 1e6:.3f} mm mrad')
-print(f'eny: {eny * 1e6:.3f} mm mrad')
+print('enx is ' + repr(enx * 1e6) + ' mm mrad.')
+print('eny is ' + repr(eny * 1e6) + ' mm mrad.')
 print('========================================')
-print(f'betax at initial position: {beta_x:.3f} m')
-print(f'betay at initial position: {beta_y:.3f} m')
-print(f'alphax at initial position: {alpha_x:.3f}')
-print(f'alphay at initial position: {alpha_y:.3f}')
+print('betax at the initial position is ' + repr(beta_x) + ' m.')
+print('betay at the initial position is ' + repr(beta_y) + ' m.')
+print('alphax at the initial position is ' + repr(alpha_x) + ' .')
+print('alphay at the initial position is ' + repr(alpha_y) + ' .')
 print('========================================')
 
-# Plot results
-plt.figure(figsize=(10, 5))
-plt.scatter(kval_x, rx_sqr * 1e6, label=r'$\sigma_x^2$ ($mm^2$)', color='blue')
-plt.scatter(kval_y, ry_sqr * 1e6, label=r'$\sigma_y^2$ ($mm^2$)', color='red')
-plt.plot(kval_fit_x, rx_fit * 1e6, '--',  color='blue')
-plt.plot(kval_fit_y, ry_fit * 1e6, '--',  color='red')
-plt.xlabel('Quadrupole Strength : k ($m^-2$)')
-plt.ylabel(r'$\sigma$ ($mm^2$)')
+# Figure setting
+fonts = 25
+plt.style.use('classic')
+rc = {"font.family": "Arial"}
+plt.rcParams.update(rc)
+
+params = {'legend.fontsize': 18,
+          'axes.labelsize': 25,
+          'axes.titlesize': 25,
+          'xtick.labelsize': 25,
+          'ytick.labelsize': 25,
+          'grid.color': 'k',
+          'grid.linestyle': ':',
+          'grid.linewidth': 1.5
+          }
+matplotlib.rcParams.update(params)
+
+ccode1 = [40, 122, 169]
+ccode2 = [120, 130, 46]
+ccode3 = [120, 175, 59]
+ccode4 = [80, 80, 80]
+
+ccode1 = tuple(np.array(ccode1) / 255)
+ccode2 = tuple(np.array(ccode2) / 255)
+ccode3 = tuple(np.array(ccode3) / 255)
+ccode4 = tuple(np.array(ccode4) / 255)
+
+# Linewidth
+line_width = 2.3
+
+# Plot for horizontal data
+fig, ax1 = plt.subplots()
+fig.patch.set_facecolor('white')
+fig.set_size_inches(10, 9)
+
+p1 = ax1.scatter(kvalh, np.array(sigx_sqr) * 1e6, s=40)
+p2 = ax1.errorbar(kvalh, np.array(sigx_sqr) * 1e6, (stdx_sqr) * 1e6, linewidth=0.5, linestyle='--', label=r'$\sigma_{x}^{2},~\mathrm{Measurement}$')
+p3 = ax1.plot(kval_fith, np.array(fitx) * 1e6, '-', linewidth=line_width, label=r'$\sigma_{x}^{2},~\mathrm{Curve~fitting}$')
+
+color = ccode1
+ax1.set_xlabel(r'$\mathrm{k~(m^{-2})}$')
+ax1.set_ylabel(r'$\sigma_{x}^{2}~\mathrm{(mm^{2})}$', color=color)
+ax1.tick_params(axis='y', labelcolor=color)
+ax1.grid()
 plt.legend()
-plt.grid()
-#plt.title('Quad Scan Analysis')
-plt.savefig('quad_scan_plot.png')
-plt.show()
+fig.tight_layout()
+plt.savefig('sigma_x.png')
+plt.close()
+# Plot for vertical data
+fig, ax2 = plt.subplots()
+fig.patch.set_facecolor('white')
+fig.set_size_inches(10, 9)
+
+p1 = ax2.scatter(kvalv, np.array(sigy_sqr) * 1e6, s=40)
+p2 = ax2.errorbar(kvalv, np.array(sigy_sqr) * 1e6, (stdy_sqr) * 1e6, linewidth=0.5, linestyle='--', label=r'$\sigma_{y}^{2},~\mathrm{Measurement}$')
+p3 = ax2.plot(kval_fitv, np.array(fity) * 1e6, '-', linewidth=line_width, label=r'$\sigma_{y}^{2},~\mathrm{Curve~fitting}$')
+
+color = ccode1
+ax2.set_xlabel(r'$\mathrm{k~(m^{-2})}$')
+ax2.set_ylabel(r'$\sigma_{y}^{2}~\mathrm{(mm^{2})}$', color=color)
+ax2.tick_params(axis='y', labelcolor=color)
+ax2.grid()
+plt.legend()
+fig.tight_layout()
+plt.savefig('sigma_y.png')

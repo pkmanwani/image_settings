@@ -109,5 +109,5 @@ def plot_beamline(file_path):
     plt.show()
 
 if __name__ == "__main__":
-    file_path = "../beamlines/awa/elements.json"
+    file_path = "../beamlines/awa/2025_02_20/elements.json"
     plot_beamline(file_path)

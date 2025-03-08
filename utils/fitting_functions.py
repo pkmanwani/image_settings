@@ -8,16 +8,51 @@ from .fitting_methods import fit_gaussian_linear_background
 from scipy.signal import find_peaks
 import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
-# Function to open H5 file and read images
+import os
+import json
+import re
+
+
+def get_resolution_from_elements(file_path):
+    # Extract base directory and elements.json path
+    base_dir = os.path.dirname(os.path.dirname(file_path))  # Go up one level
+    elements_path = os.path.join(base_dir, "elements.json")
+
+    if not os.path.exists(elements_path):
+        print(f"Warning: elements.json not found at {elements_path}. Defaulting to res = 1.")
+        return 1
+
+    with open(elements_path, "r") as f:
+        elements = json.load(f)
+
+    filename = os.path.basename(file_path).lower()  # Get the filename in lowercase
+    # Get the yags list from the loaded elements.json
+    yags = elements.get('yags', [])
+
+    # Loop through the yags to find a matching resolution
+    for yag in yags:
+        for name in yag['name']:
+            # Match "yag12", "dyg12", etc., followed by any characters (non-digit part)
+            pattern = re.compile(rf"\b{name}[_]", re.IGNORECASE) # Match "yag12", "dyg12", etc.
+            #print(f"Checking if {name} is in {filename}...")  # Debugging line
+            if pattern.search(filename):
+                print(f"Found resolution in elements.json: {yag['res']}")
+                return yag['res']  # Return the resolution if a match is found
+
+    # If no match is found, return None or a default resolution
+    print(f"No matching resolution found for {filename}. Returning None.")
+    return None
+
+
 def get_images(file_path):
     with h5py.File(file_path, 'r') as f:
         images = f['images'][:]
-        res = f['images'].attrs['resolution']
-        print(f"Resolution from file is {res}")
-        if res is None:
-            res = 1
-            print("Setting res to 1")
-    return images,res
+        res = f['images'].attrs.get('resolution', None)  # Use .get() to avoid KeyErrors
+        if res is None or res == 1:
+            print(f"Resolution from file is {res}. Checking elements.json...")
+            res = get_resolution_from_elements(file_path)
+
+    return images, res
 
 def create_circular_mask(image,center=None, radius=None):
     h,w = image.shape

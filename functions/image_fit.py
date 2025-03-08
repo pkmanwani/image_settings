@@ -120,7 +120,7 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
     return None  # Explicitly return None when no valid results exist
 
 if __name__ == "__main__":
-    file_path = "../beamlines/awa/2025_02_19-selected/ThreeScreenAfterFlat/Yag6_1740007655.h5"
-    rms, errors = image_fit(file_path,roi=True,get_res=False,mask_every_image=False,debug=True,calc_jitter=True)
+    file_path = "../beamlines/awa/2025_02_20/DowntheLine/Yag12_TightererFocus_1740098358.h5"
+    rms, errors = image_fit(file_path,roi=True,get_res=False,mask_every_image=False,debug=True,calc_jitter=False)
     print(rms)
     print(errors)
