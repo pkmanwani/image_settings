@@ -1,10 +1,14 @@
+import sys
+sys.path.append('../')
+import os
 import json
-import numpy as np
 from scipy.optimize import curve_fit
 from scipy.linalg import inv
+from scipy.constants import c, e, m_e
 from sympy import MatrixSymbol, Matrix
+import numpy as np
 import matplotlib.pyplot as plt
-
+from functions.save_parameters_json_parallel import save_parameters_json_parallel
 def Drift(l):
     return Matrix([[1, l, 0, 0,  0, 0],
                     [0, 1,  0, 0,  0, 0],
@@ -12,166 +16,186 @@ def Drift(l):
                     [0, 0,  0, 1,  0, 0],
                     [0, 0,  0, 0,  1, 0],
                     [0, 0,  0, 0,  0, 1]])
-
-# Constants
-electron_mass = 9.109e-31  # kg
-electron_charge = 1.602e-19  # C
-energy_MeV = 63  # Example beam energy in MeV
-energy_J = energy_MeV * 1e6 * electron_charge
-gamma = energy_J / (electron_mass * 9e16)
-beta = np.sqrt(1 - 1 / gamma ** 2)
-
-# Screen positions in meters
-SCREEN_POSITIONS = {
-    "Yag4": 11372.85e-3,
-    "Yag6": 14922.5e-3,
-    "Yag7": 17792.7e-3,  # SlitYAG is YAG7
-    "Yag8": 18821.4e-3,
-    "Yag5": 16484.6e-3
-}
-
-# Drift space
-skew = 12255.5e-3
-dd0 = 0.01
-dd1 = 0.01  # 3.555
-dd2 = SCREEN_POSITIONS["Yag5"] - SCREEN_POSITIONS["Yag6"]  # 2.86 # For EYG8
-dd3 = SCREEN_POSITIONS["Yag7"] - SCREEN_POSITIONS["Yag5"]  # 2.86 # For EYG8
-dd4 = SCREEN_POSITIONS["Yag8"] - SCREEN_POSITIONS["Yag7"]  # 2.86 # For EYG8
-
-# Matrix D1, D2, D3, D4 for the drift between screens
-D_0 = dd0
-D_1 = dd1
-D_2 = D_1 + dd2
-D_3 = D_2 + dd3
-D_4 = D_3 + dd4
-print(D_0, D_1, D_2, D_3, D_4)
-
-D1 = Drift(dd0+dd1)
-D2 = Drift(dd0 + dd1)
-D3 = Drift(dd0 + dd1 + dd2+dd3)
-D4 = Drift(dd0 + dd1 + dd2 + dd3+dd4)
-
-# Matrix M (for beam size calculation)
-M = Matrix([
-    [D1[0, 0]**2, 2*D1[0, 0]*D1[0, 1], D1[0, 1]**2],
-    [D2[0, 0]**2, 2*D2[0, 0]*D2[0, 1], D2[0, 1]**2],
-    [D3[0, 0]**2, 2*D3[0, 0]*D3[0, 1], D3[0, 1]**2],
-    [D4[0, 0]**2, 2*D4[0, 0]*D4[0, 1], D4[0, 1]**2]
-])
-
-# Beam size calculation
-MM = (M.transpose() * M).inv() * M.transpose()
-#MM = M.inv()
-
 # Define the parabolic function
 def spot_size_evolution(x, sigma_star, x0, beta_star):
-    return sigma_star * (np.sqrt(1 + ((x - x0) / beta_star) ** 2))
+    return sigma_star * np.sqrt((1 + ((x - x0 - np.min(x)) / beta_star) ** 2))
+def multi_screen_measurement(folder_path,initial_position=0):
+    """
+    Process the given folder by looking for parameters.json and elements.json,
+    extracting and printing relevant information.
 
-# Load beam size data from JSON file
-def load_data(json_file):
-    with open(json_file, 'r') as f:
+    :param folder_path: Path to the folder containing parameters.json.
+    :param possible_names: List of possible names to match Yag elements.
+    """
+    # Paths to JSON files
+    parameters_path = os.path.join(folder_path, "parameters.json")
+    elements_path = os.path.join(os.path.dirname(os.path.dirname(folder_path)), "elements.json")
+
+    # Check if parameters.json exists
+    if not os.path.exists(parameters_path):
+        print(f"Error: {parameters_path} not found.")
+        return
+    # Check if elements.json exists
+    if not os.path.exists(elements_path):
+        print(f"Error: {elements_path} not found.")
+        return
+    # Load elements.json
+    with open(elements_path, "r") as f:
+        elements_data = json.load(f)
+        print(f"Loaded: {elements_path}")
+        # print(elements_data)
+        pz = elements_data.get("beam")[0].get("pz")
+        print(f"Beam momentum : {pz}")
+        beta_gamma = e * pz / (m_e * c ** 2) + 1
+        print(f"beta gamma : {beta_gamma}")
+    # Load parameters.json
+    with open(parameters_path, "r") as f:
         data = json.load(f)
-
-    screen_positions = []
-    sigx = []
-    sigy = []
-
+    names = []
+    beam_sizes_x = []
+    beam_sizes_y = []
+    errors_x = []
+    errors_y = []
+    #Set position where you want to check the beam
+    # Process each entry
+    #pz = dataload
+    positions = []
     for entry in data:
-        filename = entry["filename"]
-        screen_name = filename.split('ThreeScreen')[0].replace("SlitYag", "Yag7").strip('_')
-        if screen_name in SCREEN_POSITIONS:
-            screen_positions.append(SCREEN_POSITIONS[screen_name])
-            sigx.append(entry["Rx_final"] * entry["res"])
-            sigy.append(entry["Ry_final"] * entry["res"])
+        filename = entry.get("filename", "")
+        rx_values = entry.get("Rx_final", [])
+        ry_values = entry.get("Ry_final", [])
 
-    return np.array(screen_positions), np.array(sigx), np.array(sigy)
+        if not filename or not rx_values:
+            print("Skipping entry with missing filename or Rx values.")
+            continue
 
-# Process the JSON data (example path)
-screen_positions, sigx, sigy = load_data("parameters.json")
+        print(f"\n{filename}: Rx = {rx_values[0]}, Ry = {ry_values[0]}")
 
-# RMS beam size calculation
-sig1x = (sigx[0] * 1e-3) ** 2
-sig2x = (sigx[1] * 1e-3) ** 2
-sig3x = (sigx[2] * 1e-3) ** 2
-sig4x = (sigx[3] * 1e-3) ** 2
+        #Extract potential Yag name from filename
+        filename_parts = filename.split("_")
+        potential_yag_name = filename_parts[0] if filename_parts else ""
 
-sig1y = (sigy[0] * 1e-3) ** 2
-sig2y = (sigy[1] * 1e-3) ** 2
-sig3y = (sigy[2] * 1e-3) ** 2
-sig4y = (sigy[3] * 1e-3) ** 2
+        # Find matching Yag in elements.json
+        matched_yag = None
+        for yag in elements_data.get("yags", []):
+            if potential_yag_name.lower() in yag["name"]:
+                matched_yag = yag
+                break
 
-sig0x_11 = MM[0, 0] * sig1x + MM[0, 1] * sig2x + MM[0, 2] * sig3x + MM[0, 3] * sig4x
-sig0x_12 = MM[1, 0] * sig1x + MM[1, 1] * sig2x + MM[1, 2] * sig3x + MM[1, 3] * sig4x
-sig0x_22 = MM[2, 0] * sig1x + MM[2, 1] * sig2x + MM[2, 2] * sig3x + MM[2, 3] * sig4x
-sig0y_11 = MM[0, 0] * sig1y + MM[0, 1] * sig2y + MM[0, 2] * sig3y + MM[0, 3] * sig4y
-sig0y_12 = MM[1, 0] * sig1y + MM[1, 1] * sig2y + MM[1, 2] * sig3y + MM[1, 3] * sig4x
-sig0y_22 = MM[2, 0] * sig1y + MM[2, 1] * sig2y + MM[2, 2] * sig3y + MM[2, 3] * sig4x
+        if matched_yag:
+            res = matched_yag['res']
+            size_x_mm = rx_values[0] * res
+            size_y_mm = ry_values[0] * res
+            errors_x_mm = rx_values[1] * res
+            errors_y_mm = ry_values[1] * res
+            beam_sizes_x.append(size_x_mm*1e-3)
+            beam_sizes_y.append(size_y_mm*1e-3)
+            errors_x.append(errors_x_mm*1e-3)
+            errors_y.append(errors_y_mm*1e-3)
+            positions.append(matched_yag['position'])
+            names.append(matched_yag['name'])
+            print(f"\n{filename}: Rx = {size_x_mm:.4f} mm, Ry = {size_y_mm:.4f} mm")
+            print(f"Found Yag: {matched_yag['name']}")
+            print(f"Position: {matched_yag['position']} m")
+            print(f"Resolution: {matched_yag['res']} mm/pixel")
+        else:
+            print(f"No matching Yag found for {potential_yag_name} in {elements_path}.")
 
-sig0x_11 = np.array(sig0x_11, dtype='float')
-sig0x_12 = np.array(sig0x_12, dtype='float')
-sig0x_22 = np.array(sig0x_22, dtype='float')
-sig0y_11 = np.array(sig0y_11, dtype='float')
-sig0y_12 = np.array(sig0y_12, dtype='float')
-sig0y_22 = np.array(sig0y_22, dtype='float')
+    # Compute drift distances directly from positions
+    #print(positions)
+    #print(beam_sizes_x)
+    #print(beam_sizes_y)
+    print(initial_position)
+    drift_distances = [
+        positions[i]-initial_position for i in range(0, len(positions))
+    ]
+    print(drift_distances)
+    #print(drift_distances)
+    # Compute drift matrices dynamically
+    drift_matrices = [Drift(drift_distances[i]) for i in range(0,len(drift_distances))]
+    #print(drift_matrices)
+    #print(np.shape(drift_matrices))
+    # Matrix M for beam size calculation
+    M = Matrix([
+        [D[0, 0] ** 2, 2 * D[0, 1] * D[1, 1], D[0, 1] ** 2] for D in drift_matrices
+    ])
+    #print(M)
+    # Beam size calculation using beam_sizes_x and beam_sizes_y
+    beam_size_matrix_x = Matrix([[beam_sizes_x[i]**2] for i in range(len(beam_sizes_x))])
+    beam_size_matrix_y = Matrix([[beam_sizes_y[i]**2] for i in range(len(beam_sizes_y))])
+    #print(M.transpose() * M)
+    #print((M.transpose() * M).n(30).inv().n(16))
+    # Beam size calculation
+    #Calculate pseudo inverse
+    MM = np.linalg.pinv(np.array(M).astype(np.float64))
+    # MM = M.inv()
+    #print(np.shape(MM))
+    #print(np.shape(beam_size_matrix_x))
+    # Solve for Twiss parameters
+    #print(n)
+    twiss_params_x = Matrix(MM) * beam_size_matrix_x
+    twiss_params_y = Matrix(MM) * beam_size_matrix_y
+    #print('T')
+    #print(np.shape(twiss_params_x))
+    #print(twiss_params_x)
+    #print(np.shape(twiss_params_y))
+    #print(twiss_params_y)
+    twiss_params_x = np.array(twiss_params_x).astype(np.float64)
+    twiss_params_y = np.array(twiss_params_y).astype(np.float64)
+    sig0x_11, sig0x_12, sig0x_22 = twiss_params_x.flatten()
+    sig0y_11, sig0y_12, sig0y_22 = twiss_params_y.flatten()
+    sig0x_recon = np.sqrt(sig0x_11)
+    sig0y_recon = np.sqrt(sig0y_11)
+    emitx_recon = np.sqrt(sig0x_11 * sig0x_22 - sig0x_12 ** 2)
+    emity_recon = np.sqrt(sig0y_11 * sig0y_22 - sig0y_12 ** 2)
+    pCentral = beta_gamma
+    enx_recon = emitx_recon * pCentral
+    eny_recon = emity_recon * pCentral
+    betax_recon = sig0x_11 / emitx_recon
+    betay_recon = sig0y_11 / emity_recon
+    alphax_recon = -sig0x_12 / emitx_recon
+    alphay_recon = -sig0y_12 / emity_recon
 
-# RMS beam sizes
-sig0x_recon = np.sqrt(sig0x_11)
-sig0y_recon = np.sqrt(sig0y_11)
+    print(f'RMSX: {sig0x_recon * 1e3:.3f} mm, RMSY: {sig0y_recon * 1e3:.3f} mm')
+    print(f'enx (pseudoinverse): {enx_recon * 1e6:.3f} mm mrad, eny (pseudoinverse): {eny_recon * 1e6:.3f} mm mrad')
+    print(f'betax: {betax_recon:.3f} m, betay: {betay_recon:.3f} m')
+    print(f'alphax: {alphax_recon:.3f}, alphay: {alphay_recon:.3f}')
 
-# Emittance
-emitx_recon = np.sqrt(sig0x_11 * sig0x_22 - (sig0x_12 ** 2))
-emity_recon = np.sqrt(sig0y_11 * sig0y_22 - (sig0y_12 ** 2))
+    positions = np.array(positions)
+    #print(drift_distances)
+    beam_sizes_x = np.array(beam_sizes_x)
+    beam_sizes_y = np.array(beam_sizes_y)
+    errors_x = np.array(errors_x)
+    errors_y = np.array(errors_y)
 
-# Normalized emittance
-pCentral = 1e-3  # Example momentum (modify as needed)
-enx_recon = emitx_recon * pCentral
-eny_recon = emity_recon * pCentral
+    parametersx, _ = curve_fit(spot_size_evolution, positions, beam_sizes_x)
+    fit_sigmax, fit_x0, fit_beta_star_x = parametersx
+    parametersy, _ = curve_fit(spot_size_evolution, positions, beam_sizes_y)
+    fit_sigmay, fit_y0, fit_beta_star_y = parametersy
 
-# Twiss Beta function
-betax_recon = sig0x_recon ** 2 / emitx_recon
-betay_recon = sig0y_recon ** 2 / emity_recon
+    sfit = np.linspace(np.min(positions), np.max(positions), 100)
+    envx = fit_sigmax * np.sqrt(1 + ((sfit - fit_x0 - np.min(positions)) / fit_beta_star_x) ** 2)
+    envy = fit_sigmay * np.sqrt(1 + ((sfit - fit_y0 - np.min(positions)) / fit_beta_star_y) ** 2)
+    emit_fit = fit_sigmax**2/fit_beta_star_x,fit_sigmay**2/fit_beta_star_y
+    emit_n_fit = np.multiply(emit_fit,beta_gamma)
+    print(f'enx (fit): {emit_n_fit[0] * 1e6:.3f} mm mrad, eny (fit): {emit_n_fit[1] * 1e6:.3f} mm mrad')
+    plt.figure()
+    plt.scatter(positions, beam_sizes_x, label="X Beam Size",color='blue')
+    plt.scatter(positions, beam_sizes_y, label="Y Beam Size",color='orange')
+    # Plot error bars only for nonzero errors
+    nonzero_x = errors_x > 0
+    plt.errorbar(positions[nonzero_x], beam_sizes_x[nonzero_x], yerr=errors_x[nonzero_x], fmt='o', color='blue', capsize=3)
 
-# Twiss Alpha function
-alphax_recon = -sig0x_12 / emitx_recon
-alphay_recon = -sig0y_12 / emity_recon
-
-# Display results
-print('RMSX is ' + repr(sig0x_recon * 1e3) + ' mm.')
-print('RMSY is ' + repr(sig0y_recon * 1e3) + ' mm.')
-print('========================================')
-print('enx is ' + repr(enx_recon * 1e6) + ' mm mrad.')
-print('eny is ' + repr(eny_recon * 1e6) + ' mm mrad.')
-print('========================================')
-print('betax at the initial position is  ' + repr(betax_recon) + ' m.')
-print('betay at the initial position is  ' + repr(betay_recon) + ' m.')
-print('alphax at the initial position is ' + repr(alphax_recon) + ' .')
-print('alphay at the initial position is ' + repr(alphay_recon) + ' .')
-
-# Parabolic curve fitting for beam size evolution
-sigx_YAG = [sigx[0], sigx[1], sigx[2],sigx[3]]
-sigy_YAG = [sigy[0], sigy[1], sigy[2],sigy[3]]
-sYAG = [D_1, D_2, D_3, D_4]
-
-parametersx, _ = curve_fit(spot_size_evolution, sYAG, sigx_YAG)
-fit_sigmax = parametersx[0]
-fit_x0 = parametersx[1]
-fit_beta_star_x = parametersx[2]
-
-parametersy, _ = curve_fit(spot_size_evolution, sYAG, sigy_YAG)
-fit_sigmay = parametersy[0]
-fit_y0 = parametersy[1]
-fit_beta_star_y = parametersy[2]
-
-# Plotting
-sfit = np.linspace(0.0, D_4, 1000)
-envx = fit_sigmax * (np.sqrt(1 + ((sfit - fit_x0) / fit_beta_star_x) ** 2))
-envy = fit_sigmay * (np.sqrt(1 + ((sfit - fit_y0) / fit_beta_star_y) ** 2))
-
-plt.figure()
-plt.scatter(sYAG, sigx_YAG, label="X Beam Size")
-plt.scatter(sYAG, sigy_YAG, label="Y Beam Size")
-plt.plot(sfit, envx, linestyle='dotted', label="X Fit")
-plt.plot(sfit, envy, linestyle='dotted', label="Y Fit")
-plt.legend()
-plt.grid(True)
-plt.savefig('fourscan.png')
+    nonzero_y = errors_y > 0
+    plt.errorbar(positions[nonzero_y], beam_sizes_y[nonzero_y], yerr=errors_y[nonzero_y], fmt='o', color='orange', capsize=3)
+    plt.plot(sfit, envx, linestyle='dotted', label="X Fit")
+    plt.plot(sfit, envy, linestyle='dotted', label="Y Fit")
+    plt.axvline(initial_position, linestyle='dotted',color='black', label = 'At position')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(folder_path, 'multiscreen.png'))
+if __name__ == "__main__":
+    folder_path = "../beamlines/awa/2025_02_20/ThreeScreen_Flat/"
+    initial_position = 17
+    save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
+    multi_screen_measurement(folder_path, initial_position)

@@ -3,6 +3,10 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/beamlines" />
+      <excludeFolder url="file://$MODULE_DIR$/beamlines/awa" />
+      <excludeFolder url="file://$MODULE_DIR$/beamlines/awa/2025_02_20" />
+      <excludeFolder url="file://$MODULE_DIR$/old_notebooks" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.12" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

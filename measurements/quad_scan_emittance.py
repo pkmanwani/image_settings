@@ -1,9 +1,11 @@
+import sys
+sys.path.append('../')
 import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-
+import functions.save_parameters_json_parallel
 # Physical constants
 e   = 1.602e-19  # Electron charge (C)
 m   = 9.11e-31   # Electron mass (kg)

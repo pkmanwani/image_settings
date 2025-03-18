@@ -1,6 +1,4 @@
-import sys
-sys.path.append('../')
-from image_fit import image_fit
+from functions.image_fit import image_fit
 import os
 import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -42,7 +40,7 @@ def process_file(file_path, roi, sigma_size, get_res, mask_every_image, debug, c
     }
 
 
-def save_parameters_to_json_parallel(folder_path, roi=True, sigma_size=3, get_res=False, mask_every_image=False, debug=False,
+def save_parameters_json_parallel(folder_path, roi=True, sigma_size=3, get_res=False, mask_every_image=False, debug=False,
                                      calc_jitter=False):
     """ Function to process all files in parallel and save results to JSON """
     h5_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.h5')]
@@ -75,5 +73,5 @@ def save_parameters_to_json_parallel(folder_path, roi=True, sigma_size=3, get_re
 
 if __name__ == "__main__":
     # Example usage
-    folder_path = '../beamlines/awa/2025_02_20/DowntheLine'  # Change this to your folder path
-    save_parameters_to_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
+    folder_path = '../beamlines/awa/2025_02_19-selected/ThreeScreenAfterFlat'  # Change this to your folder path
+    save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
