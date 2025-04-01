@@ -13,6 +13,9 @@ import json
 
 def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=False,debug=False,calc_jitter=False):
     images,res = get_images(file_path)
+    images=images[0]
+    if not isinstance(images, list):
+        images = [images]
     n_images=len(images)
     # Directories to store images
     masked_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.h')[0],'masked_images')
@@ -43,14 +46,10 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
             print(f"Circle detected at ({center[0]}, {center[1]}) with radius {radius}.")
             yag_radius = 25 #mm
             res_mm = yag_radius / c1.circle.radius
-            print(f"YAG radius assumed to be {res_mm} mm.")
-            user_res = input(f"Resolution per pixel in mm is {res_mm}. Is that fine (y/n/file)?")
-            if user_res == 'y':
-                res=res_mm
-                get_res = False
-            elif user_res == 'file':
-                get_res = False
-                continue
+            print(f"YAG radius assumed to be {yag_radius} mm.")
+            print(f"Resolution per pixel in mm is {res_mm}")
+            res=res_mm
+            get_res = False
         if roi and not mask_switch:  # If ROI mode is enabled, prompt the user to select ROI first
             print("ROI mode is enabled. Please select an ROI.")
             mask = select_roi(image)  # Replace with actual ROI selection logic
@@ -80,7 +79,7 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
                         print("No ROI or circle detected. Going to next image.")
             else:
                 print("Using resolution circle")
-
+                mask_switch=True
         if mask_switch:
             print("Mask enabled. Processing image")
             masked_image = np.ma.masked_array(image, mask=~mask)
@@ -110,13 +109,16 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
     if calc_jitter:
         if results:
             results = np.array(results)
+            print(np.shape(results))
             results = results[~np.isnan(results).any(axis=1)]  # Remove NaN rows
             if len(results) > 1:
                 rms = np.sqrt(np.mean(results ** 2, axis=0))
                 errors = np.std(results, axis=0) / np.sqrt(len(results))
                 return rms, errors
-        print("No valid results found for jitter calculation.")
-
+            else:
+                return results[0],np.zeros_like(results[0])
+                print("No valid results found for jitter calculation.")
+    print("No valid results")
     return None  # Explicitly return None when no valid results exist
 
 if __name__ == "__main__":

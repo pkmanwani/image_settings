@@ -8,14 +8,13 @@ from scipy.optimize import curve_fit
 from scipy.constants import c, e, m_e
 from functions.save_parameters_json_parallel import save_parameters_json_parallel
 
-def quad_scan(folder_path, quad_string, yag_string,quad_length,t_m_to_ampere=1):
+def magnetization_scan(folder_path, yag_string1, yag_string2):
     """
-    Perform quadrupole scan analysis using beam size data from JSON files.
+    Perform magnetization scan analysis using beam size data from JSON files.
 
     Parameters:
     - folder_path (str): Path to the folder containing parameters.json and elements.json.
-    - quad_string (str): String to identify the quadrupole in elements.json.
-    - yag_string (str): String to identify the YAG in elements.json.
+    - yag_string (str): String to identify the YAGs in elements.json.
     """
     # Load parameters.json
     parameters_path = os.path.join(folder_path, "parameters.json")
@@ -205,9 +204,28 @@ def quad_scan(folder_path, quad_string, yag_string,quad_length,t_m_to_ampere=1):
 
 # Example usage
 if __name__ == "__main__":
-    folder_path = "../beamlines/awa/2025_02_20/QuadScan2/"
-    quad_string = "quad7"
+    folder_path = "../beamlines/awa/2025_02_20/FlatBeam_Magnet/"
     yag_string = "yag7"
     effective_quad_length = 0.12 #effective_length
     t_m_to_ampere = 0.893 #0.893 A gives 1 T/m
-    quad_scan(folder_path, quad_string, yag_string,effective_quad_length,t_m_to_ampere)
+    magnetization_scan(folder_path, quad_string, yag_string,effective_quad_length,t_m_to_ampere)
+
+import numpy as np
+# Constants
+e = 1.602e-19  # Elementary charge in Coulombs
+m_e = 9.1093837e-31  # Electron mass in kg
+c = 299792458  # Speed of light in m/s
+R_c = 3.25e-3  # Spot size of the cathode in meters
+D = 2.87  # Distance parameter in meters
+pz = 63e6
+error_R_c =0.25e-3
+res_6 =0.1181
+res_7= 0.0433
+R1 =np.sqrt(13.856274938771453**2 + 15.988803936271733**2)*res_6*1e-3
+R2 =np.sqrt(72.93**2+ 82.446**2)*res_7*1e-3
+current = 393
+B = 0.0254 * current / 100
+L_m = e * B * (R_c ** 2) / 4
+L = pz*R1*R2*np.sin(16*np.pi/180)*e/((D*c)*2*m_e*c)
+print(L_m*1e6/(2*m_e*c))
+print(L)

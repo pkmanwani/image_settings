@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 from functions.image_fit import image_fit
 import os
 import json
@@ -60,9 +62,9 @@ def save_parameters_json_parallel(folder_path, roi=True, sigma_size=3, get_res=F
                 if result is not None:
                     results.append(result)
             except RuntimeError as e:
-                print(f"RuntimeError while processing {file_path}: {e}")
+                print(f"\nRuntimeError while processing {file_path}: {e}")
             except Exception as e:
-                print(f"Unexpected error while processing {file_path}: {e}")
+                print(f"\nUnexpected error while processing {file_path}: {e}")
 
     # Save results to JSON file
     json_file_path = os.path.join(folder_path, 'parameters.json')
@@ -73,5 +75,5 @@ def save_parameters_json_parallel(folder_path, roi=True, sigma_size=3, get_res=F
 
 if __name__ == "__main__":
     # Example usage
-    folder_path = '../beamlines/awa/2025_02_19-selected/ThreeScreenAfterFlat'  # Change this to your folder path
+    folder_path = '../beamlines/awa/2025_02_20/FlatBeam_Magnet'  # Change this to your folder path
     save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)

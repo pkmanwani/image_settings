@@ -191,11 +191,38 @@ def multi_screen_measurement(folder_path,initial_position=0):
     plt.plot(sfit, envx, linestyle='dotted', label="X Fit")
     plt.plot(sfit, envy, linestyle='dotted', label="Y Fit")
     plt.axvline(initial_position, linestyle='dotted',color='black', label = 'At position')
+    plt.ylabel(r'$\sigma (mm)')
     plt.legend()
     plt.grid(True)
     plt.savefig(os.path.join(folder_path, 'multiscreen.png'))
+    # Prepare results dictionary
+    results = {
+        "RMSX_mm": sig0x_recon * 1e3,
+        "RMSY_mm": sig0y_recon * 1e3,
+        "enx_pseudoinverse_mm_mrad": enx_recon * 1e6,
+        "eny_pseudoinverse_mm_mrad": eny_recon * 1e6,
+        "betax_m": betax_recon,
+        "betay_m": betay_recon,
+        "alphax": alphax_recon,
+        "alphay": alphay_recon,
+        "enx_fit_mm_mrad": emit_n_fit[0] * 1e6,
+        "eny_fit_mm_mrad": emit_n_fit[1] * 1e6,
+        "positions": positions.tolist(),
+        "beam_sizes_x": beam_sizes_x.tolist(),
+        "beam_sizes_y": beam_sizes_y.tolist(),
+        "errors_x": errors_x.tolist(),
+        "errors_y": errors_y.tolist()
+    }
+
+    # Save the results to a JSON file in the same folder as the plot
+    output_json_path = os.path.join(folder_path, "multiscreen_results.json")
+    with open(output_json_path, "w") as json_file:
+        json.dump(results, json_file, indent=4)
+
+    print(f"Results saved to {output_json_path}")
+
 if __name__ == "__main__":
-    folder_path = "../beamlines/awa/2025_02_20/ThreeScreen_Flat/"
+    folder_path = "../beamlines/awa/2025_02_20/ThreeScreen2/"
     initial_position = 17
-    save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
+    #save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
     multi_screen_measurement(folder_path, initial_position)

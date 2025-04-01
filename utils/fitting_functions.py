@@ -465,7 +465,9 @@ def compute_beam_parameters(masked_image, threshold, res, compute_covariance=Tru
     # Compute RMS sizes
     Rx, Ry, Rxy = calculate_rms_vectorized(temp_im, Cx, Cy, compute_covariance)
 
-    angle = 0.5 * np.arctan2(2 * Rxy, Rx - Ry)
+    cov_matrix_R = np.array([[Rx ** 2, Rxy], [Rxy, Ry ** 2]])
+    eigvals_R, eigvecs_R = np.linalg.eigh(cov_matrix_R)
+    angle = np.degrees(np.arctan2(eigvecs_R[1, 1], eigvecs_R[0, 1]))
     return Cx, Cy, Sx, Sy, Sxy, Rx, Ry, Rxy, angle, res
 
 

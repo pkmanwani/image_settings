@@ -7,7 +7,7 @@ from scipy.interpolate import interp2d
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import NullFormatter
 from matplotlib import rc
-from mpl_toolkits.axes_grid1.inset_locator import (inset_axes, InsetPosition, mark_inset)
+#from mpl_toolkits.axes_grid1.inset_locator import (inset_axes, InsetPosition, mark_inset)
 from scipy.optimize import curve_fit
 import sympy as sym
 from sympy import MatrixSymbol, Matrix
