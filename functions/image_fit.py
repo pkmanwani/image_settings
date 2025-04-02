@@ -11,11 +11,13 @@ from utils.circle_detection import ScreenFinder
 import json
 
 
-def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=False,debug=False,calc_jitter=False):
-    images,res = get_images(file_path)
-    images=images[0]
-    if not isinstance(images, list):
-        images = [images]
+def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=False,debug=False,calc_jitter=False,get_current=False):
+    images,res,current = get_images(file_path,get_current)
+    #print(images,res,current)
+    #if not isinstance(images, list):
+    #    print("NOT LIST")
+    #    images = [images]
+    #print(images, res, current)
     n_images=len(images)
     # Directories to store images
     masked_images_dir = os.path.join(os.path.split(file_path)[0], file_path.split('/')[-1].split('.h')[0],'masked_images')
@@ -99,12 +101,13 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
             print(threshold_value)
             if threshold_value is not None:
                 params = compute_beam_parameters(masked_image, threshold_value,res)
-                print('Parameters (Cx,Cy,Sx,Sy,Sxy, Rx,Ry,Rxy,angle,res):', params)
-                results.append(params)
+                # Append current to the output
+                params_with_current = np.append(params, current[i])
+                print('Parameters (Cx,Cy,Sx,Sy,Sxy, Rx,Ry,Rxy,angle,res,current):', params_with_current)
+                results.append(params_with_current)
                 plot_2d_gaussian_overlay(overlayed_images_dir, filtered_image, i,*params)
-
                 if not calc_jitter:
-                    return params, np.zeros_like(params)  # Return first valid image's result, error set to None
+                    return params_with_current, np.zeros_like(params_with_current)  # Return first valid image's result, error set to None
 
     if calc_jitter:
         if results:
@@ -123,6 +126,6 @@ def image_fit(file_path,roi=True,sigma_size = 3,get_res=False,mask_every_image=F
 
 if __name__ == "__main__":
     file_path = "../beamlines/awa/2025_02_20/DowntheLine/Yag12_TightererFocus_1740098358.h5"
-    rms, errors = image_fit(file_path,roi=True,get_res=False,mask_every_image=False,debug=True,calc_jitter=False)
+    rms, errors = image_fit(file_path,roi=True,get_res=False,mask_every_image=False,debug=True,calc_jitter=False,get_current=False)
     print(rms)
     print(errors)

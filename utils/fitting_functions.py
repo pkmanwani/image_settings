@@ -44,15 +44,18 @@ def get_resolution_from_elements(file_path):
     return None
 
 
-def get_images(file_path):
+def get_images(file_path,get_current=False):
     with h5py.File(file_path, 'r') as f:
         images = f['images'][:]
         res = f['images'].attrs.get('resolution', None)  # Use .get() to avoid KeyErrors
         if res is None or res == 1:
             print(f"Resolution from file is {res}. Checking elements.json...")
             res = get_resolution_from_elements(file_path)
-
-    return images, res
+        if get_current==True:
+            current = f['images'].attrs['AWA:Drive:DS1:RB']
+        else:
+            current = np.zeros(np.shape(images)[0])
+    return images, res,current
 
 def create_circular_mask(image,center=None, radius=None):
     h,w = image.shape

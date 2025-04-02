@@ -5,9 +5,9 @@ import os
 import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-def process_file(file_path, roi, sigma_size, get_res, mask_every_image, debug, calc_jitter):
+def process_file(file_path, roi, sigma_size, get_res, mask_every_image, debug, calc_jitter,get_current):
     """ Function to process a single file using image_fit and return results """
-    output = image_fit(file_path, roi, sigma_size, get_res, mask_every_image, debug, calc_jitter)
+    output = image_fit(file_path, roi, sigma_size, get_res, mask_every_image, debug, calc_jitter,get_current)
 
     if output is None:
         return {
@@ -21,29 +21,31 @@ def process_file(file_path, roi, sigma_size, get_res, mask_every_image, debug, c
             'Ry_final': None,
             'Rxy_final': None,
             'angle': None,
-            'res': None
+            'res': None,
+            'current':None
         }
-    parameters, errors = output
-    Cx_final, Cy_final, Sx_final, Sy_final, Sxy_final, Rx_final, Ry_final, Rxy_final, angle, res = parameters
-    Cx_final_e, Cy_final_e, Sx_final_e, Sy_final_e, Sxy_final_e, Rx_final_e, Ry_final_e, Rxy_final_e, angle_e, res_e = errors
-
-    return {
-        'filename': os.path.basename(file_path),
-        'Cx_final': [Cx_final, Cx_final_e],
-        'Cy_final': [Cy_final, Cy_final_e],
-        'Sx_final': [Sx_final, Sx_final_e],
-        'Sy_final': [Sy_final, Sy_final_e],
-        'Sxy_final': [Sxy_final, Sxy_final_e],
-        'Rx_final': [Rx_final, Rx_final_e],
-        'Ry_final': [Ry_final, Ry_final_e],
-        'Rxy_final': [Rxy_final, Rxy_final_e],
-        'angle': [angle, angle_e],
-        'res': [res, res_e]
-    }
+    else:
+        parameters, errors = output
+        Cx_final, Cy_final, Sx_final, Sy_final, Sxy_final, Rx_final, Ry_final, Rxy_final, angle, res,current = parameters
+        Cx_final_e, Cy_final_e, Sx_final_e, Sy_final_e, Sxy_final_e, Rx_final_e, Ry_final_e, Rxy_final_e, angle_e, res_e,current_e = errors
+        return {
+            'filename': os.path.basename(file_path),
+            'Cx_final': [Cx_final, Cx_final_e],
+            'Cy_final': [Cy_final, Cy_final_e],
+            'Sx_final': [Sx_final, Sx_final_e],
+            'Sy_final': [Sy_final, Sy_final_e],
+            'Sxy_final': [Sxy_final, Sxy_final_e],
+            'Rx_final': [Rx_final, Rx_final_e],
+            'Ry_final': [Ry_final, Ry_final_e],
+            'Rxy_final': [Rxy_final, Rxy_final_e],
+            'angle': [angle, angle_e],
+            'res': [res, res_e],
+            'current': [current,current_e]
+        }
 
 
 def save_parameters_json_parallel(folder_path, roi=True, sigma_size=3, get_res=False, mask_every_image=False, debug=False,
-                                     calc_jitter=False):
+                                     calc_jitter=False,get_current=False):
     """ Function to process all files in parallel and save results to JSON """
     h5_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.h5')]
     results = []
@@ -51,7 +53,7 @@ def save_parameters_json_parallel(folder_path, roi=True, sigma_size=3, get_res=F
     # Use ProcessPoolExecutor for parallel processing
     with ProcessPoolExecutor() as executor:
         futures = {
-            executor.submit(process_file, file_path, roi, sigma_size, get_res, mask_every_image, debug, calc_jitter): file_path
+            executor.submit(process_file, file_path, roi, sigma_size, get_res, mask_every_image, debug, calc_jitter,get_current): file_path
             for file_path in h5_files
         }
 
@@ -76,4 +78,4 @@ def save_parameters_json_parallel(folder_path, roi=True, sigma_size=3, get_res=F
 if __name__ == "__main__":
     # Example usage
     folder_path = '../beamlines/awa/2025_02_20/FlatBeam_Magnet'  # Change this to your folder path
-    save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
+    save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3,get_current=True)

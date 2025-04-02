@@ -210,4 +210,5 @@ if __name__ == "__main__":
     yag_string = "yag7"
     effective_quad_length = 0.12 #effective_length
     t_m_to_ampere = 0.893 #0.893 A gives 1 T/m
+    # save_parameters_json_parallel(folder_path,roi=True,calc_jitter=True,sigma_size=3)
     quad_scan(folder_path, quad_string, yag_string,effective_quad_length,t_m_to_ampere)
