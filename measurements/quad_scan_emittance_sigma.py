@@ -53,7 +53,7 @@ current = data['quad_current']
 # Convert current to float
 current = list(map(float, current))
 # Count to T/m
-count_tm = np.array(current) /0.893
+count_tm = np.array(current) *0.893
 
 # T/m to m^-2
 kvalh = -np.array(count_tm) * (1 / ((beta1 * Ebeam1 * 1e-9) / 0.299))

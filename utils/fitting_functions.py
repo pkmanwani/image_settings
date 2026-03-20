@@ -8,6 +8,7 @@ from .fitting_methods import fit_gaussian_linear_background
 from scipy.signal import find_peaks
 import matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
+from matplotlib.widgets import EllipseSelector
 # Function to open H5 file and read images
 def get_images(file_path):
     with h5py.File(file_path, 'r') as f:
@@ -19,6 +20,31 @@ def get_images(file_path):
             print("Setting res to 1")
     return images,res
 
+import tifffile as tiff
+
+def get_image(file_path):
+    image = tiff.imread(file_path)
+    print("Loaded TIFF image.")
+    return image, None
+
+def calibrate_resolution(calibration_file, known_radius_mm):
+    from tifffile import imread
+
+    image = imread(calibration_file)
+
+    mask, center, radius_px = select_roi_circle(image)
+
+    if radius_px is None:
+        raise RuntimeError("Calibration failed. No circle selected.")
+
+    res = known_radius_mm / radius_px
+
+    print("\n--- Calibration Result ---")
+    print(f"Known radius: {known_radius_mm} mm")
+    print(f"Measured radius: {radius_px:.3f} px")
+    print(f"Resolution: {res:.6f} mm/pixel\n")
+
+    return res
 def create_circular_mask(image,center=None, radius=None):
     h,w = image.shape
     if center is None:
@@ -156,6 +182,101 @@ def select_roi(image):
         return mask
     else:
         return None  # In case selection wasn't made
+
+def select_roi_circle(image):
+    """
+    Select circle by clicking 3 points on the circumference.
+
+    Returns:
+        mask (bool array),
+        center (x, y),
+        radius (pixels)
+    """
+
+    fig, ax = plt.subplots()
+    ax.imshow(image, cmap='gray')
+    ax.set_title("Click 3 points on the circle edge.\nPress ENTER to confirm.")
+
+    points = []
+    circle_data = {"center": None, "radius": None}
+
+    def compute_circle_from_3pts(p1, p2, p3):
+        """
+        Analytical 3-point circle solution.
+        """
+        x1, y1 = p1
+        x2, y2 = p2
+        x3, y3 = p3
+
+        temp = x2**2 + y2**2
+        bc = (x1**2 + y1**2 - temp) / 2
+        cd = (temp - x3**2 - y3**2) / 2
+        det = (x1 - x2) * (y2 - y3) - (x2 - x3) * (y1 - y2)
+
+        if abs(det) < 1e-10:
+            return None  # Points are collinear
+
+        cx = (bc * (y2 - y3) - cd * (y1 - y2)) / det
+        cy = ((x1 - x2) * cd - (x2 - x3) * bc) / det
+        radius = np.sqrt((cx - x1)**2 + (cy - y1)**2)
+
+        return cx, cy, radius
+
+    def onclick(event):
+        if event.xdata is None or event.ydata is None:
+            return
+
+        points.append((event.xdata, event.ydata))
+        ax.plot(event.xdata, event.ydata, 'ro')
+        fig.canvas.draw()
+
+        if len(points) == 3:
+            result = compute_circle_from_3pts(points[0], points[1], points[2])
+
+            if result is None:
+                print("Points are collinear. Try again.")
+                points.clear()
+                ax.patches.clear()
+                fig.canvas.draw()
+                return
+
+            cx, cy, radius = result
+            circle_data["center"] = (cx, cy)
+            circle_data["radius"] = radius
+
+            # Draw circle preview
+            circle = plt.Circle((cx, cy), radius,
+                                edgecolor='red',
+                                facecolor='none',
+                                linewidth=2)
+            ax.add_patch(circle)
+            fig.canvas.draw()
+
+    def accept(event):
+        if event.key == "enter":
+            plt.close(fig)
+
+    fig.canvas.mpl_connect("button_press_event", onclick)
+    fig.canvas.mpl_connect("key_press_event", accept)
+
+    plt.show()
+
+    if circle_data["radius"] is None:
+        print("No valid circle selected.")
+        return None, None, None
+
+    center = circle_data["center"]
+    radius = circle_data["radius"]
+
+    # Create mask
+    h, w = image.shape
+    y, x = np.ogrid[:h, :w]
+    mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
+
+    print(f"Selected circle center: {center}")
+    print(f"Selected radius (pixels): {radius:.3f}")
+
+    return mask, center, radius
 
 def smooth_saturated_values(image, threshold=None, filter_size=3):
     """
@@ -328,17 +449,17 @@ def plot_2d_gaussian_overlay(overlay_images_dir, image, index, *params):
     ax.plot(0 + y_projection * res - (Cx-x_min*res), y_range, color='white', linewidth=1)  # Flipped to align
 
     # Adjusted ellipses for the cropped region
-    ax.add_patch(patches.Ellipse((0, 0), width=major_axis_R, height=minor_axis_R,
-                                 angle=angle_R, edgecolor='cyan', facecolor='none',
-                                 linewidth=1, linestyle="dotted"))
-    ax.add_patch(patches.Ellipse((0,0), width=major_axis_s, height=minor_axis_s,
-                                 angle=angle_s, edgecolor='red', facecolor='none',
-                                 linewidth=1, linestyle="dotted"))
+    #ax.add_patch(patches.Ellipse((0, 0), width=major_axis_R, height=minor_axis_R,
+    #                             angle=angle_R, edgecolor='cyan', facecolor='none',
+    #                             linewidth=1, linestyle="dotted"))
+    #ax.add_patch(patches.Ellipse((0,0), width=major_axis_s, height=minor_axis_s,
+    #                             angle=angle_s, edgecolor='red', facecolor='none',
+    #                             linewidth=1, linestyle="dotted"))
 
     # Add text labels near ellipses inside the image
-    ax.text( + major_axis_R / 2, - minor_axis_R / 2, r"4 R", color="cyan", fontsize=10, weight="bold", ha='center')
-    ax.text( - major_axis_R / 2,  - minor_axis_R / 2, r"4 $\sigma$", color="red", fontsize=10, weight="bold",
-            ha='center')
+    #ax.text( + major_axis_R / 2, - minor_axis_R / 2, r"4 R", color="cyan", fontsize=10, weight="bold", ha='center')
+    #ax.text( - major_axis_R / 2,  - minor_axis_R / 2, r"4 $\sigma$", color="red", fontsize=10, weight="bold",
+    #        ha='center')
     # Plot cropped image
     extent = [- (Cx-x_min*res), cropped_img_width_mm - (Cx-x_min*res), cropped_img_height_mm - (Cy-y_min*res),- (Cy-y_min*res)]  # Adjusting for mm scaling
     ax.imshow(cropped_image, cmap='inferno', origin='upper', extent=extent)

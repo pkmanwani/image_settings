@@ -67,5 +67,5 @@ def save_parameters_to_json_parallel(folder_path, roi=True, sigma_size=3, get_re
 
 if __name__ == "__main__":
     # Example usage
-    folder_path = '../beamlines/awa/2025_02_19-selected/3ScreenMeasurement_LongPulse'  # Change this to your folder path
-    save_parameters_to_json_parallel(folder_path,roi=False,calc_jitter=True)
+    folder_path = '../2025_02_20/ThreeScreen_Flat'  # Change this to your folder path
+    save_parameters_to_json_parallel(folder_path,roi=True,calc_jitter=True)
